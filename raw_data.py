@@ -4,8 +4,53 @@ import datetime
 
 import numpy
 
+class StockData:
+    """ 
+    Base class for loading historical stock data.
+    """
+    
+    def __init__(self, fname, ticker):
+        """ 
+        Load historical finance data.
 
-class Yahoo:
+        Parameters
+        ----------
+        fname : string
+            The file to load.
+        ticker : string
+            The stock ticker of the data to load.
+        """
+
+        self.path = os.path.abspath(fname)
+        self.ticker = ticker
+        self.data = {}
+
+    def price_to_relative(self, price):
+        """ 
+        Get relative change in price.
+        """
+        
+        data = numpy.empty(shape=price.shape)
+        data[1:] = price[1:]/price[:-1]
+        data[0] = 1.0
+        return data
+
+    def price_to_normalized(self, time, price):
+        """ 
+        Get relative change in price, normalized to the average time step
+        and scaled such that the total relative change is uneffected.
+        
+        """
+        
+        data = numpy.empty(shape=price.shape)
+        dt = time[1:] - time[:-1]
+        data[1:] = numpy.power(price[1:]/price[:-1], dt.mean()/dt)
+        data[0] = 1.0
+        normalization = (price[-1]/price[0])/(numpy.prod(data))
+        data[1:] = data[1:]*numpy.power(normalization, 1.0/float(len(data[1:])))
+        return data
+
+class Yahoo(StockData):
     """ 
     Load .csv files of historical stock data from Yahoo finance.
 
@@ -20,6 +65,7 @@ class Yahoo:
         "time", "open", "high", "low", "close", "adj_close", and "volume".
         The time is reported as a unix timestamp.
     """
+
     _header = "Date,Open,High,Low,Close,Adj Close,Volume"
 
     def __init__(self, fname, ticker):
@@ -33,9 +79,8 @@ class Yahoo:
         ticker : string
             The stock ticker of the data to load.
         """
-        self.path = os.path.abspath(fname)
-        self.ticker = ticker
-        self.data = {}
+
+        super().__init__(fname, ticker)
         
         data = None
         with open(self.path, "r") as fin:
