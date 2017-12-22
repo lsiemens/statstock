@@ -4,6 +4,53 @@ import datetime
 
 import numpy
 
+class Binning:
+    """ 
+    Methods for binning data.
+    """
+    
+    def __init__(self):
+        pass
+    
+    def bin_t_mean(self, time, data, n):
+        pass
+    
+    def bin_t_product(self, time, data, n):
+        pass
+    
+    def bin_data(self, time, data):
+        """ 
+        Parameters
+        ----------
+        time : array
+            A numpy array containing unix timestamps, the shape of "time"
+            should be (n,).
+        data : ndarray
+            The data to be binned, the shape of "data" should be either
+            (m, n) or (n,).
+        """
+        
+        #cast time and data as ndarrays
+        time = numpy.array(time)
+        data = numpy.array(data)
+        
+        if len(time.shape) != 1:
+            raise ValueError("the array \"time\" must have the shape (n,)")
+        
+        if len(data.shape) == 1:
+            data = numpy.array([data])
+        
+        if len(data.shape) != 2:
+            raise ValueError("the array \"data\" must either have the shape (m, n) or (n,)")
+        
+        if data.shape[-1] != time.shape[-1]:    
+            raise ValueError("The length of \"time\" and \"data\" is mismatched")
+
+        #begin binning data
+        
+        #retrn binned data
+        return time, data
+        
 class StockData:
     """ 
     Base class for loading historical stock data.
