@@ -1,3 +1,8 @@
+""" 
+data.py: is a module for loading historical stock data, and contains some
+methods and classes for completing the inital processing of the data.
+"""
+
 import os
 import time
 import datetime
