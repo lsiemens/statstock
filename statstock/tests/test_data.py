@@ -56,4 +56,4 @@ class TestYahoo(unittest.TestCase):
                 if key == "keys":
                     self.assertEqual(data.data.keys(), expected_data.keys())
                 else:
-                    self.assertTrue(numpy.allclose(data.data[key], expected_data[key]))
+                    self.assertTrue(numpy.allclose(data.data[key], expected_data[key], rtol=5e-05))
