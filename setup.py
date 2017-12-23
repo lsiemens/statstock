@@ -6,7 +6,5 @@ setup(
     packages = ["statstock"],
     install_requires = ["numpy"],
     author = "Luke Siemens",
-    author_email = "luke@lsiemens.com",
-    test_suite="nose.collector",
-    tests_require=["nose"]
+    author_email = "luke@lsiemens.com"
 )
