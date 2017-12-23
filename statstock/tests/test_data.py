@@ -26,7 +26,6 @@ class TestStockData(unittest.TestCase):
 
     def test_stockdata_method_price_to_normalized(self):
         expected_data = numpy.array([1.0, 0.99909619, 1.00731204, 1.00522128, 1.01742799, 0.99909619, 0.99909619, 0.99408728, 0.99406662, 1.00313828])
-        print(type(self.time))
         result = self.stockdata.price_to_normalized(self.time, self.data)
         self.assertTrue(numpy.allclose(result, expected_data))
 
