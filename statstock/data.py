@@ -14,16 +14,46 @@ class Binning:
     Methods for binning data.
     """
     
-    def __init__(self):
-        pass
+    def __init__(self, points, n=1):
+        """ 
+        Take mean or product of groups of n subelements,
+        bin according to nearest point in points
+        """
+        self.n = n
+        self.points = numpy.array(points)
+        
+        self.bins = 0.5*(self.points[1:] + self.points[:-1])
     
-    def bin_t_mean(self, time, data, n):
-        pass
-    
-    def bin_t_product(self, time, data, n):
-        pass
-    
-    def bin_data(self, time, data):
+    def _bin_time_mean(self, data):
+        """ 
+        compute mean over sequential groups of n elements
+        
+        Parameters
+        ----------
+        data : ndarray
+            numpy data to bin.
+        """
+        
+        data = numpy.array(data)
+        data = data[..., slice(data.shape[-1] % self.n, None, None)]
+        data = data.reshape(tuple(list(data.shape)[:-1] + [-1, self.n]))
+        return numpy.mean(data, axis=-1)
+
+    def _bin_time_product(self, data):
+        """ 
+        compute product over sequential groups of n elements
+        
+        Parameters
+        ----------
+        data : ndarray
+            numpy data to bin.
+        """
+        
+        data = data[..., slice(data.shape[-1] % self.n, None, None)]
+        data = data.reshape(tuple(list(data.shape)[:-1] + [-1, self.n]))
+        return numpy.prod(data, axis=-1)
+           
+    def bin_data(self, time, data, product=False):
         """ 
         Parameters
         ----------
@@ -33,6 +63,8 @@ class Binning:
         data : ndarray
             The data to be binned, the shape of "data" should be either
             (m, n) or (n,).
+        product : bool
+            take product of data subelements, if False then take mean. The default is False.
         """
         
         #cast time and data as ndarrays
@@ -42,18 +74,20 @@ class Binning:
         if len(time.shape) != 1:
             raise ValueError("the array \"time\" must have the shape (n,)")
         
-        if len(data.shape) == 1:
-            data = numpy.array([data])
-        
-        if len(data.shape) != 2:
+        if (len(data.shape) != 1) and (len(data.shape) != 2):
             raise ValueError("the array \"data\" must either have the shape (m, n) or (n,)")
         
         if data.shape[-1] != time.shape[-1]:    
             raise ValueError("The length of \"time\" and \"data\" is mismatched")
 
         #begin binning data
+        if product:
+            data = self._bin_time_product(data)
+        else:
+            data = self._bin_time_mean(data)        
+        time = self._bin_time_mean(time)
+        data = numpy.digitize(data, self.bins)
         
-        #retrn binned data
         return time, data
         
 class StockData:

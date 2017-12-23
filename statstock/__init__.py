@@ -4,3 +4,4 @@ data.
 """
 
 from . import data
+from . import markov
