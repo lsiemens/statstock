@@ -6,7 +6,7 @@ import numpy
 import statstock
 
 class TestStockData(unittest.TestCase):
-    data_dir = os.path.abspath(os.path.dirname(__file__) + "/data")
+    data_dir = os.path.abspath(os.path.dirname(__file__) + "/example_data")
 
     def setUp(self):
         self.stockdata = statstock.data.StockData(self.data_dir + "/sample.csv", "smp")
@@ -31,7 +31,7 @@ class TestStockData(unittest.TestCase):
         self.assertTrue(numpy.allclose(result, expected_data))
 
 class TestYahoo(unittest.TestCase):
-    data_dir = os.path.abspath(os.path.dirname(__file__) + "/data")
+    data_dir = os.path.abspath(os.path.dirname(__file__) + "/example_data")
 
     def test_yahoo_attribute_path(self):
         data = statstock.data.Yahoo(self.data_dir + "/sample.csv", "smp")
