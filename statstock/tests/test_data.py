@@ -5,6 +5,40 @@ import numpy
 
 import statstock
 
+class TestBinning(unittest.TestCase):
+    def setUp(self):
+        self.points = numpy.linspace(0.9, 1.1, 3)
+        self.binning = statstock.data.Binning(self.points, 3)
+        
+        self.time = numpy.linspace(0, 100, 11)
+        self.data = numpy.linspace(0.8, 1.2, 11)
+
+    def test_binning_attribute_points(self):
+        self.assertTrue(numpy.allclose(self.binning.points, self.points))
+        
+    def test_binning_attribute_n(self):
+        self.assertEqual(self.binning.n, 3)
+
+    def test_binning_method_bin_data_time_mean(self):
+        time = numpy.array([30.0, 60.0, 90.0])
+        result = self.binning.bin_data(self.time, self.data, product=False)
+        self.assertTrue(numpy.allclose(result[0], time))
+
+    def test_binning_method_bin_data_data_mean(self):
+        data = numpy.array([0, 1, 2])
+        result = self.binning.bin_data(self.time, self.data, product=False)
+        self.assertTrue(numpy.allclose(result[1], data))
+
+    def test_binning_method_bin_data_time_product(self):
+        time = numpy.array([30.0, 60.0, 90.0])
+        result = self.binning.bin_data(self.time, self.data, product=True)
+        self.assertTrue(numpy.allclose(result[0], time))
+
+    def test_binning_method_bin_data_data_product(self):
+        data = numpy.array([0, 2, 2])
+        result = self.binning.bin_data(self.time, self.data, product=True)
+        self.assertTrue(numpy.allclose(result[1], data))
+
 class TestStockData(unittest.TestCase):
     data_dir = os.path.abspath(os.path.dirname(__file__) + "/example_data")
 
@@ -16,7 +50,7 @@ class TestStockData(unittest.TestCase):
     def test_stockdata_attribute_path(self):
         self.assertTrue(os.path.samefile(self.stockdata.path, self.data_dir + "/sample.csv"))
 
-    def test_yahoo_attribute_ticker(self):
+    def test_stockdata_attribute_ticker(self):
         self.assertEqual(self.stockdata.ticker, "smp")
 
     def test_stockdata_method_price_to_relative(self):
