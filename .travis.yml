@@ -1,9 +1,0 @@
-language: python
-python:
-  - 3.4
-git:
-  depth: 2
-install:
-  - pip install numpy
-script:
-  - python runtests
