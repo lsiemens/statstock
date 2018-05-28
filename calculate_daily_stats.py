@@ -37,19 +37,19 @@ import sys
 import numpy
 from matplotlib import pyplot
 
-import data
+import stockdata
 import stat_model
 
 dir = "/DATA/lsiemens/Data/stocks/"
 extension = ".us.txt"
 
-#files = data.list_stock_files(dir, extension)
-files = [("/DATA/lsiemens/Data/stocks/glw.us.txt", "dia")]
+files = stockdata.list_stock_files(dir, extension)
+#files = [("/DATA/lsiemens/Data/stocks/glw.us.txt", "dia")]
 
 all_data = []
 for i, (path, ticker) in enumerate(files):
     try:
-        stock_data = data.csv(path, ticker)
+        stock_data = stockdata.csv(path, ticker)
     except OSError:
         print("header error: " + ticker)
         continue

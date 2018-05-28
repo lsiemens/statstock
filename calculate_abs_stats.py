@@ -4,7 +4,7 @@ import sys
 import numpy
 from matplotlib import pyplot
 
-import data
+import stockdata
 import stat_model
 
 dir = "/DATA/lsiemens/Data/stocks/"
@@ -14,7 +14,7 @@ etfs = []
 with open("etf_all_tickers.txt", "r") as fin:
     etfs = fin.read().split("\n")
 
-files = data.list_stock_files(dir, extension)
+files = stockdata.list_stock_files(dir, extension)
 #files = [("/DATA/lsiemens/Data/stocks/" + ticker + ".us.txt", ticker) for ticker in etfs]
 
 #num_days = [20, 120, 240, 360, 480, 600]
@@ -22,7 +22,7 @@ num_days = range(1, 20*12*3, 3)
 all_data = [[]]*len(num_days)
 for i, (path, ticker) in enumerate(files):
     try:
-        stock_data = data.csv(path, ticker)
+        stock_data = stockdata.csv(path, ticker)
     except OSError:
         print("header error: " + ticker)
         continue

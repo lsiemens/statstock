@@ -4,7 +4,7 @@ import sys
 import numpy
 from matplotlib import pyplot
 
-import data
+import stockdata
 import stat_model
 
 analysis_simulation_rato = 0.5
@@ -12,13 +12,13 @@ analysis_simulation_rato = 0.5
 dir = "/DATA/lsiemens/Data/stocks/"
 extension = ".us.txt"
 
-#files = data.list_stock_files(dir, extension)
+#files = stockdata.list_stock_files(dir, extension)
 files = [(dir + "spy" + extension, "spy")]
 path, ticker = files[0]
 
 #for i, (path, ticker) in enumerate(files):
 try:
-    stock_data = data.csv(path, ticker)
+    stock_data = stockdata.csv(path, ticker)
 except OSError:
 #        print("header error: " + ticker)
     exit()

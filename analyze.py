@@ -4,13 +4,13 @@ import sys
 import numpy
 from matplotlib import pyplot
 
-import data
+import stockdata
 import stat_model
 
 dir = "/DATA/lsiemens/Data/stocks/"
 extension = ".us.txt"
 
-files = data.list_stock_files(dir, extension)
+files = stockdata.list_stock_files(dir, extension)
 
 p_mean_all = []
 p_std_all = []
@@ -18,7 +18,7 @@ p_std_all = []
 renorm_mean_all, renorm_std_all = [], []
 for i, (path, ticker) in enumerate(files):
     try:
-        stock_data = data.csv(path, ticker)
+        stock_data = stockdata.csv(path, ticker)
     except OSError:
 #        print("header error: " + ticker)
         continue
