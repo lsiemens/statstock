@@ -1,0 +1,5 @@
+Compare VirtualMarket to computed statistic ie "calculate_abs_stats.py" and to online data.
+
+check if using a portfolio of random stocks changes the distribution or is the shape stable
+under summation of distribution (like the gausian). that is try to see if the distribution
+is a "Stable Distribution" under summation or multiplication.
