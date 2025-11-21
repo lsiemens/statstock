@@ -5,6 +5,8 @@ import requests
 import datetime
 import zoneinfo
 
+import numpy as np
+
 
 class AuthError(Exception):
     """Authentication error"""
@@ -18,7 +20,7 @@ class RateLimit:
 
         self.call_chain = [-1*self.interval]*self.calls
         self.index = 0
-        print(self)
+#        print(self)
 
     def call(self):
         current_time = time.time() - self._start
@@ -28,7 +30,7 @@ class RateLimit:
 
         self.call_chain[self.index] = current_time
         self.index = (self.index + 1) % self.calls
-        print(self)
+#        print(self)
 
     def __str__(self):
         string = "["
@@ -193,6 +195,11 @@ class QuestradeClient:
         price = quote["lastTradePriceTrHrs"]
         return price
 
+    def read_candle_dict(self, candle):
+        data = np.array([candle["VWAP"], candle["open"], candle["close"],
+                         candle["low"], candle["high"], candle["volume"]])
+        return data
+
     def get_candles(self, symbol_id, startTime, endTime, interval):
         try:
             symbol_id = int(symbol_id)
@@ -203,7 +210,26 @@ class QuestradeClient:
                   "endTime": endTime,
                   "interval": interval}
         candles = self.request("GET", f"/v1/markets/candles/{symbol_id}", params)
-        return candles["candles"]
+        candles = candles["candles"]
+
+        match interval:
+            case "OneDay":
+                step = 1
+            case "OneWeek":
+                step = 7
+            case _:
+                raise NotImplemented(f"The interval {interval} has not been inplemented")
+        first_end = datetime.datetime.fromisoformat(candles[0]["end"])
+        last_start = datetime.datetime.fromisoformat(candles[-1]["start"])
+        n_elements = 2 + ((last_start - first_end).days//step)
+
+        data = np.full((n_elements, 6), float("Nan"))
+        data[0] = self.read_candle_dict(candles[0])
+        for candle in candles[1:]:
+            start = datetime.datetime.fromisoformat(candle["start"])
+            i = 1 + ((start - first_end).days//step)
+            data[i] = self.read_candle_dict(candle)
+        return data
 
     def get_n_candles(self, symbol_id, n, interval):
         endTime = self.get_time()
@@ -211,27 +237,20 @@ class QuestradeClient:
 
         match interval:
             case "OneDay":
-                days = n%5 + 7*(n//5)
-                startTime = self.get_time(days=-days)
+                startTime = self.get_time(days=1 - n)
             case "OneWeek":
-                startTime = self.get_time(weeks=-n)
+                startTime = self.get_time(weeks=1 - n)
             case _:
                 raise NotImplemented(f"The interval {interval} has not been inplemented")
         return self.get_candles(symbol_id, startTime, endTime, interval)
 
 if __name__ == "__main__":
-    #import logging
-    #import http
-    #http.client.HTTPConnection.debuglevel = 1
-
+    from matplotlib import pyplot as plt
     client = QuestradeClient()
-    #client.clear_tokens()
-    #client._refresh_using_current_tokens()
-    #client._validate_tokens()
+#    client.clear_tokens()
 
-    print(client.get_quote("TSLA"))
-    print()
-    data = client.get_n_candles("TSLA", 502, "OneWeek")
-    print(f"number of candles {len(data)}")
-
-
+    print("TSLA price:", client.get_quote("TSLA"))
+    data = client.get_n_candles("GLW", 2000, "OneWeek")
+    print("candle data shape", data.shape)
+    plt.plot(data[:, 0])
+    plt.show()
