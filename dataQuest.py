@@ -13,6 +13,12 @@ class AuthError(Exception):
 
 
 class RateLimit:
+    """Class for adding rate limits
+
+    A cyclic list of call times is used to put the process to sleep if the time
+    between the current call and previous n calls exceeds a specified interval.
+    """
+
     def __init__(self, calls, interval=60):
         self.calls = calls
         self.interval = interval
@@ -22,6 +28,11 @@ class RateLimit:
         self.index = 0
 
     def call(self):
+        """Add a rate limit controlled call
+
+        This function will sleep if the rate limit is exceeded.
+        """
+
         current_time = time.time() - self._start
         buffer = current_time - self.call_chain[self.index] - self.interval
         if buffer <= 0:
@@ -44,6 +55,9 @@ class RateLimit:
 
 
 class QuestradeClient:
+    """Manage the questrade API
+    """
+
     def __init__(self):
         self.login_base = "https://login.questrade.com"
 
@@ -62,6 +76,11 @@ class QuestradeClient:
         self._load_tokens_from_keyring()
 
     def get_time(self, weeks=0, days=0, hours=0, minutes=0):
+        """Get datetime string
+
+        A datetime string in the format required for the questrade API.
+        """
+
         time_offset = datetime.timedelta(weeks=weeks, days=days,
                                          hours=hours, minutes=minutes)
 
@@ -97,6 +116,11 @@ class QuestradeClient:
         keyring.set_password(self._key_name, self._username, json.dumps(payload))
 
     def clear_tokens(self):
+        """Remove the current tokens
+
+        The API tokens will be cleared and deleted from the system keyring
+        """
+
         try:
             keyring.delete_password(self._key_name, self._username)
         except keyring.errors.PasswordDeleteError:
@@ -107,12 +131,18 @@ class QuestradeClient:
         self.expires_at = 0.0
 
     def _bootstrap_refresh_token(self):
+        """Get refresh token from user input
+        """
+
         token = input("Paste Questrade refresh token: ").strip()
         if not token:
             raise AuthError("No refresh token provided!")
         return token
 
     def _refresh_using_current_tokens(self):
+        """Request new OAuth tokens using the refresh token
+        """
+
         if self.refresh_token is None:
             self.refresh_token = self._bootstrap_refresh_token()
 
@@ -140,12 +170,20 @@ class QuestradeClient:
         self._save_tokens_to_keyring()
 
     def _validate_tokens(self):
+        """Refresh tokens if they are empty or have expired
+        """
+
         now = time.time()
         if self.access_token and (now < (self.expires_at - 30)):
             return
         self._refresh_using_current_tokens()
 
     def request(self, method, path, params=None, json_body=None):
+        """Standard questraid info request
+
+        Setup the format of the standard API requests
+        """
+
         self._ratelimiter.call()
         self._validate_tokens()
 
@@ -177,7 +215,8 @@ class QuestradeClient:
     def find_symbol(self, ticker):
         """Get symbol from ticker
 
-        The symbol contians the Questrade symbolID, ticker and currency.
+        The symbol contains the Questrade symbolID, ticker and currency in the
+        format (Int, String, String).
         """
 
         symbols = self.request("GET",
@@ -189,6 +228,12 @@ class QuestradeClient:
         raise ValueError(f"Failed to get a symbol for the ticker: {ticker}")
 
     def get_quote(self, symbol):
+        """Get snap quote
+
+        Get price and symbol (includes the currency) for a given symbol or
+        raw stock ticker string.
+        """
+
         try:
             symbolID = int(symbol[0])
         except ValueError:
@@ -201,11 +246,29 @@ class QuestradeClient:
         return (price, symbol)
 
     def read_candle_dict(self, candle):
+        """Convert data into a standard format
+
+        Store candle info from a dictionary in a numpy array with elements
+        arranged as VWAP OHLC Volume.
+        """
+
         data = np.array([candle["VWAP"], candle["open"], candle["high"],
                          candle["low"], candle["close"], candle["volume"]])
         return data
 
     def get_candles(self, symbol, startTime, endTime, interval):
+        """Get candles from questrade
+
+        Create a (n, 6) numpy array of candle data for the intervals between
+        the start and end time. Missing data (weekends, ...) between those
+        dates will be filled with float("Nan"). If the start or end date lands
+        on a non-trading day this can cause the array to be smaller than
+        expected.
+
+        The candle data is packaged with interval and symbol in the form
+        (candle, interval, symbol).
+        """
+
         try:
             symbolID = int(symbol[0])
         except ValueError:
@@ -217,8 +280,8 @@ class QuestradeClient:
                   "interval": interval}
         try:
             candles = self.request("GET", f"/v1/markets/candles/{symbolID}", params)
-        except:
-            print(symbol)
+        except Exception:
+            print(f"Exception while getting candles for {symbol[1]}")
             raise
 
         candles = candles["candles"]
@@ -243,6 +306,14 @@ class QuestradeClient:
         return (data, interval, symbol)
 
     def get_n_candles(self, symbol, n, interval):
+        """Get n candles from questrade starting at the current date.
+
+        Create a (n, 6) numpy array of candle data.
+
+        The candle data is packaged with interval and symbol in the form
+        (candle, interval, symbol).
+        """
+
         endTime = self.get_time()
         startTime = None
 
@@ -253,15 +324,36 @@ class QuestradeClient:
                 startTime = self.get_time(weeks=1 - n)
             case _:
                 raise NotImplemented(f"The interval {interval} has not been inplemented")
-        return self.get_candles(symbol, startTime, endTime, interval)
+        candles, _, symbol = self.get_candles(symbol, startTime, endTime, interval)
+
+        if (n == len(candles)):
+            return (candles, interval, symbol)
+
+        print(f"Warring: {n} data points requested from {symbol[1]}, {len(candles)} points where received.")
+        if (abs(n - len(candles)) <= 4):
+            print("This may be due to non trading days on the set boundary.")
+
+        m = n - len(candles)
+
+        extended_candles = np.full(shape=(n, 6), fill_value=float("Nan"))
+        extended_candles[m:, :] = candles
+        return (extended_candles, interval, symbol)
+
 
 if __name__ == "__main__":
     from matplotlib import pyplot as plt
     client = QuestradeClient()
 #    client.clear_tokens()
 
-    print("TSLA price:", client.get_quote("TSLA"))
-    data = client.get_n_candles("GLW", 2000, "OneWeek")[0]
-    print("candle data shape", data.shape)
-    plt.plot(data[:, 0])
+    ticker = "GLW"
+    n = 2000
+    interval = "OneWeek"
+
+    print(f"{ticker} price:", client.get_quote(ticker))
+    candles, _, (_, _, currency) = client.get_n_candles(ticker, n, interval)
+    print("candle data shape", candles.shape)
+    plt.plot(candles[:, 0])
+    plt.xlabel(interval[3:])
+    plt.ylabel(f"VWAP ({currency})")
+    plt.title(ticker)
     plt.show()

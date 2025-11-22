@@ -1,8 +1,9 @@
-from matplotlib import pyplot as plt
 import numpy as np
 import scipy
+import scipy.optimize
 
 import portfolio
+
 
 class Optimizer:
     def __init__(self, portfolio):
@@ -13,7 +14,6 @@ class Optimizer:
 
         self.logprice = np.array(portfolio.logprice)
         self.logerror = np.array(portfolio.logerror)
-        self.weights = np.array(portfolio.weights)
 
         self.Elnret = None
         self.Elncov = None
@@ -56,11 +56,13 @@ class Optimizer:
         for ineq_const in ineq_consts:
             constraints.append({"type": "ineq", "fun": ineq_const})
 
-        results = scipy.optimize.minimize(U, w_0, method="SLSQP", bounds=bounds,
+        results = scipy.optimize.minimize(U, w_0, method="SLSQP",
+                                          bounds=bounds,
                                           constraints=constraints)
 
         return results.x, results
-        
+
+
 if __name__ == "__main__":
     p_0 = portfolio.Portfolio("./all_holdings.csv", 500, "OneDay")
     MPT = Optimizer(p_0)
@@ -70,7 +72,7 @@ if __name__ == "__main__":
         return 1 - np.sum(w)
 
     bounds = [(0, 1.0) for i in range(MPT.width)]
-    result = MPT.solver(4, eq_consts = [g], bounds=bounds)
+    result = MPT.solver(4, eq_consts=[g], bounds=bounds)
 
     if (not result[1].success):
         print("Failed to converge")
@@ -86,8 +88,5 @@ if __name__ == "__main__":
 
     Eret = np.exp(Elnret_p + Elnvar_p/2)
     Eret_bounds = (np.exp(Elnret_p - Elnvar_p), np.exp(Elnret_p + Elnvar_p))
-    
+
     print(Eret, Eret_bounds)
-    
-
-
