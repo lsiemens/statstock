@@ -20,17 +20,16 @@ class RateLimit:
 
         self.call_chain = [-1*self.interval]*self.calls
         self.index = 0
-#        print(self)
 
     def call(self):
         current_time = time.time() - self._start
         buffer = current_time - self.call_chain[self.index] - self.interval
         if buffer <= 0:
+            print(f"INFO: Call limit reached, this process will sleep for {abs(buffer)} seconds")
             time.sleep(abs(buffer))
 
         self.call_chain[self.index] = current_time
         self.index = (self.index + 1) % self.calls
-#        print(self)
 
     def __str__(self):
         string = "["
@@ -175,41 +174,53 @@ class QuestradeClient:
         responce.raise_for_status()
         return responce.json()
 
-    def find_symbol_id(self, ticker):
+    def find_symbol(self, ticker):
+        """Get symbol from ticker
+
+        The symbol contians the Questrade symbolID, ticker and currency.
+        """
+
         symbols = self.request("GET",
                                "/v1/symbols/search",
                                {"prefix": ticker.strip()})
         for symbol in symbols["symbols"]:
             if symbol["symbol"] == ticker.upper():
-                return symbol["symbolId"]
-        raise ValueError(f"Failed to get a symbolId for the ticker: {ticker}")
+                return (symbol["symbolId"], symbol["symbol"], symbol["currency"])
+        raise ValueError(f"Failed to get a symbol for the ticker: {ticker}")
 
-    def get_quote(self, symbol_id):
+    def get_quote(self, symbol):
         try:
-            symbol_id = int(symbol_id)
+            symbolID = int(symbol[0])
         except ValueError:
-            symbol_id = self.find_symbol_id(symbol_id)
+            symbol = self.find_symbol(symbol)
+            return self.get_quote(symbol)
 
-        quote = self.request("GET", f"/v1/markets/quotes/{symbol_id}")
+        quote = self.request("GET", f"/v1/markets/quotes/{symbolID}")
         quote = quote["quotes"][0]
         price = quote["lastTradePriceTrHrs"]
-        return price
+        return (price, symbol)
 
     def read_candle_dict(self, candle):
-        data = np.array([candle["VWAP"], candle["open"], candle["close"],
-                         candle["low"], candle["high"], candle["volume"]])
+        data = np.array([candle["VWAP"], candle["open"], candle["high"],
+                         candle["low"], candle["close"], candle["volume"]])
         return data
 
-    def get_candles(self, symbol_id, startTime, endTime, interval):
+    def get_candles(self, symbol, startTime, endTime, interval):
         try:
-            symbol_id = int(symbol_id)
+            symbolID = int(symbol[0])
         except ValueError:
-            symbol_id = self.find_symbol_id(symbol_id)
+            symbol = self.find_symbol(symbol)
+            return self.get_candles(symbol, startTime, endTime, interval)
 
         params = {"startTime": startTime,
                   "endTime": endTime,
                   "interval": interval}
-        candles = self.request("GET", f"/v1/markets/candles/{symbol_id}", params)
+        try:
+            candles = self.request("GET", f"/v1/markets/candles/{symbolID}", params)
+        except:
+            print(symbol)
+            raise
+
         candles = candles["candles"]
 
         match interval:
@@ -229,9 +240,9 @@ class QuestradeClient:
             start = datetime.datetime.fromisoformat(candle["start"])
             i = 1 + ((start - first_end).days//step)
             data[i] = self.read_candle_dict(candle)
-        return data
+        return (data, interval, symbol)
 
-    def get_n_candles(self, symbol_id, n, interval):
+    def get_n_candles(self, symbol, n, interval):
         endTime = self.get_time()
         startTime = None
 
@@ -242,7 +253,7 @@ class QuestradeClient:
                 startTime = self.get_time(weeks=1 - n)
             case _:
                 raise NotImplemented(f"The interval {interval} has not been inplemented")
-        return self.get_candles(symbol_id, startTime, endTime, interval)
+        return self.get_candles(symbol, startTime, endTime, interval)
 
 if __name__ == "__main__":
     from matplotlib import pyplot as plt
@@ -250,7 +261,7 @@ if __name__ == "__main__":
 #    client.clear_tokens()
 
     print("TSLA price:", client.get_quote("TSLA"))
-    data = client.get_n_candles("GLW", 2000, "OneWeek")
+    data = client.get_n_candles("GLW", 2000, "OneWeek")[0]
     print("candle data shape", data.shape)
     plt.plot(data[:, 0])
     plt.show()

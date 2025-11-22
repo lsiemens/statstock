@@ -36,6 +36,7 @@ class holding:
 
     if text[0][0] != "(":
       self.currency = "CAD"
+      self.ticker += ".TO"
     else:
       self.currency = text[0][1:-1]
       text = text[1:]
