@@ -5,7 +5,11 @@ import portfolio
 
 
 class SimpleRebalance(rebalance.Rebalance):
-    """Use simple means to estimate returns
+    """Simple MPT rebalancing
+
+    Calculate expected future log returns as the simple mean of past log
+    returns. Likewise calculate the covariance matrix as the covariance of the
+    past log returns.
     """
 
     def market_statistics(self):
