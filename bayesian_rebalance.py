@@ -156,5 +156,5 @@ if __name__ == "__main__":
 
     prediction = forcast.Forcast(MPT, weights)
 
-    values = prediction.n_forcasts(52*15, 10000)
+    values = prediction.n_forcasts(52*15, 1000)
     prediction.show_n_forcasts(values)
