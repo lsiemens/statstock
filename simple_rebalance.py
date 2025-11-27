@@ -2,6 +2,7 @@ import numpy as np
 
 import rebalance
 import portfolio
+import forcast
 
 
 class SimpleRebalance(rebalance.Rebalance):
@@ -12,7 +13,20 @@ class SimpleRebalance(rebalance.Rebalance):
     past log returns.
     """
 
-    def market_statistics(self):
+    def sample_lnRet(self, n_intervals):
+        (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err), _ = self.market_statistics(annualized=False)
+
+        sample_mu = self.rng.normal(ElnRet, ElnRet_err)
+        sample_Sigma = self.rng.normal(CovlnRet, CovlnRet_err)
+
+        if not self.check_SPSD(sample_Sigma):
+          sample_Sigma = self.fix_SPSD(sample_Sigma)
+
+        sample_lnRet = self.rng.multivariate_normal(sample_mu, sample_Sigma, n_intervals)
+        sample_lnRet = sample_lnRet.T
+        return sample_lnRet
+
+    def market_statistics(self, annualized=True):
         match self.interval:
             case "OneDay":
                 periods_year = 52*5
@@ -32,20 +46,22 @@ class SimpleRebalance(rebalance.Rebalance):
         Var_CovlnRet = (VarlnRet**2 + np.outer(VarlnRet, VarlnRet))/len(ElnRet)
         CovlnRet_err = np.sqrt(Var_CovlnRet)
 
-        ElnRet = ElnRet*periods_year
-        ElnRet_err = ElnRet_err*np.sqrt(periods_year)
+        if annualized:
+            ElnRet = ElnRet*periods_year
+            ElnRet_err = ElnRet_err*np.sqrt(periods_year)
 
-        CovlnRet = CovlnRet*periods_year
-        CovlnRet_err = CovlnRet_err*np.sqrt(periods_year)
+            CovlnRet = CovlnRet*periods_year
+            CovlnRet_err = CovlnRet_err*np.sqrt(periods_year)
+
         return (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err), lnRet.shape[1]
 
 
 if __name__ == "__main__":
     #p_0 = portfolio.Portfolio("./all_holdings.csv", 365*2, "OneDay")
     p_0 = portfolio.Portfolio("./all_holdings.csv", 52*15, "OneWeek")
-    MPT = SimpleRebalance(p_0, ["APPL", "ARM", "IBIT", "U", "DJT", "DGRC.TO", "LHX"])
+    MPT = SimpleRebalance(p_0, ["APPL", "ARM", "IBIT", "U", "DJT", "DGRC.TO", "LHX", "GME"])
     MPT.data_info()
-    MPT.show_market_statistics()
+    #MPT.show_market_statistics()
 
     def g(w):
         return 1 - np.sum(w)
@@ -57,8 +73,10 @@ if __name__ == "__main__":
         return -(MPT.utility(mu, Sigma, weight, gamma) + (0.1/MPT.width)/np.sum(weight**2))
 
     bounds = [(0.0, 1.0) for i in range(MPT.width)]
-    weights, result = MPT.solver(U, eq_consts=[g], bounds=bounds)
-
-    print(f"{result.message} after {result.nit} iterations with utility u(weight) = {-100*result.fun:.1f}%")
+    weights = MPT.solver(U, eq_consts=[g], bounds=bounds)
 
     MPT.show_portfolio_statistics(weights)
+
+    prediction = forcast.Forcast(MPT, weights)
+    values = prediction.n_forcasts(52*15, 1000)
+    prediction.show_n_forcasts(values)

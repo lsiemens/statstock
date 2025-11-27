@@ -2,6 +2,7 @@ import numpy as np
 
 import rebalance
 import portfolio
+import forcast
 
 
 class BayesianRebalance(rebalance.Rebalance):
@@ -32,6 +33,10 @@ class BayesianRebalance(rebalance.Rebalance):
 
     Mean(mu | x) = mu_k
     Mean(Sigma | x) = psi_k / (nu_k - n - 1)
+
+
+    In the limit of a large number of samples the mean and standard error of mu
+    and Sigma will tend to the same values as in the SimpleRebalance class.
 
     """
 
@@ -68,9 +73,23 @@ class BayesianRebalance(rebalance.Rebalance):
         else:
             self.Psi_0 = Psi_0
 
+    # TODO sample from NIW distribution instead of the market_statistics
+    def sample_lnRet(self, n_intervals):
+         (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err), _ = self.market_statistics(annualized=False)
+
+         sample_mu = self.rng.normal(ElnRet, ElnRet_err)
+         sample_Sigma = self.rng.normal(CovlnRet, CovlnRet_err)
+
+         if not self.check_SPSD(sample_Sigma):
+           sample_Sigma = self.fix_SPSD(sample_Sigma)
+
+         sample_lnRet = self.rng.multivariate_normal(sample_mu, sample_Sigma, n_intervals)
+         sample_lnRet = sample_lnRet.T
+         return sample_lnRet
+
     # TODO validate equation for the posterior, expected mu and Sigma and the
     # equations for the standard error
-    def market_statistics(self):
+    def market_statistics(self, annualized=True):
         match self.interval:
             case "OneDay":
                 periods_year = 52*5
@@ -96,20 +115,21 @@ class BayesianRebalance(rebalance.Rebalance):
         Psi_k = self.Psi_0 + S + (self.lambda_0*n/lambda_k)*((x_bar - self.mu_0) @ (x_bar - self.mu_0).T)
 
         # Calculated expected mu, Sigma and their errors
-        E_mu = mu_k
-        E_Sigma = Psi_k/(nu_k - d - 1)
+        ElnRet = mu_k
+        CovlnRet = Psi_k/(nu_k - d - 1)
 
-        SE_mu = np.sqrt(np.diag(Psi_k)/(lambda_k*(nu_k - d + 1)))
+        ElnRet_err = np.sqrt(np.diag(Psi_k)/(lambda_k*(nu_k - d + 1)))
         _off_axis = (nu_k - d + 1)*Psi_k**2
         _diagonal = (nu_k - d - 1)*np.outer(np.diag(Psi_k), np.diag(Psi_k))
-        SE_Sigma = np.sqrt((_off_axis + _diagonal)/((nu_k -d)*(nu_k - d - 1)**2*(nu_k - d - 3)))
+        CovlnRet_err = np.sqrt((_off_axis + _diagonal)/((nu_k -d)*(nu_k - d - 1)**2*(nu_k - d - 3)))
 
         # annualize the mean and covarience
-        ElnRet = E_mu*periods_year
-        ElnRet_err = SE_mu*np.sqrt(periods_year)
+        if annualized:
+            ElnRet = ElnRet*periods_year
+            ElnRet_err = ElnRet_err*np.sqrt(periods_year)
 
-        CovlnRet = E_Sigma*periods_year
-        CovlnRet_err = SE_Sigma*np.sqrt(periods_year)
+            CovlnRet = CovlnRet*periods_year
+            CovlnRet_err = CovlnRet_err*np.sqrt(periods_year)
 
         return (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err), lnRet.shape[1]
 
@@ -118,7 +138,7 @@ if __name__ == "__main__":
     p_0 = portfolio.Portfolio("./all_holdings.csv", 52*15, "OneWeek")
     MPT = BayesianRebalance(p_0, ["APPL", "ARM", "IBIT", "U", "DJT", "DGRC.TO", "LHX"])
     MPT.data_info()
-    MPT.show_market_statistics()
+    #MPT.show_market_statistics()
 
     def g(w):
         return 1 - np.sum(w)
@@ -130,8 +150,11 @@ if __name__ == "__main__":
         return -(MPT.utility(mu, Sigma, weight, gamma) + (0.1/MPT.width)/np.sum(weight**2))
 
     bounds = [(0.0, 1.0) for i in range(MPT.width)]
-    weights, result = MPT.solver(U, eq_consts=[g], bounds=bounds)
-
-    print(f"{result.message} after {result.nit} iterations with utility u(weight) = {-100*result.fun:.1f}%")
+    weights = MPT.solver(U, eq_consts=[g], bounds=bounds)
 
     MPT.show_portfolio_statistics(weights)
+
+    prediction = forcast.Forcast(MPT, weights)
+
+    values = prediction.n_forcasts(52*15, 10000)
+    prediction.show_n_forcasts(values)

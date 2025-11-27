@@ -31,6 +31,8 @@ class Rebalance:
             self.weights[i] = n_shares[i]*np.exp(self.logprice[i, -1])
         self.weights = self.weights/np.mean(self.weights)
 
+        self.rng = np.random.default_rng()
+
         self.initialize()
 
     def initialize(self):
@@ -39,6 +41,58 @@ class Rebalance:
         Initialize is called at the end of __init__
         """
         pass
+
+    def sample_lnRet(self, n_intervals):
+        """Generate samples of lnRet
+
+        The sampled log returns should not be annualized.
+
+        Parameters
+        ----------
+        n_intervals : int
+            Number of samples to return
+        
+        Returns
+        -------
+        array(width, n_intervals)
+            Random Samples of log returns matching the observed statistics.
+        """
+        raise NotImplementedError("sample_lnRet must be implemented in a subclass")
+  
+    def check_SPSD(self, A, rtol=1e-5, atol=1e-8):
+        """Check if matrix is symmetric positive semidefinite
+        """
+
+        sym_abs_error = np.max(np.abs(A - A.T))
+        if not np.isclose(sym_abs_error, 0):
+            return False
+
+        A_sym = (A + A.T)/2
+
+        if np.min(np.diag(A_sym)) < 0:
+            return False
+
+        diagonal, orthogonal = np.linalg.eigh(A_sym)
+        
+        if np.min(diagonal) < 0:
+            return False
+
+        return True
+
+    def fix_SPSD(self, A):
+        sym_A = (A + A.T)/2
+        #  diagonal, orthogonal   = ...
+        eigenvalues, eigenvectors = np.linalg.eigh(sym_A)
+        # note diagonal is a vector not a matrix
+
+        min_eigenvalue = np.min(np.abs(eigenvalues))
+        # replace negative eigenvalues with a positive eigenvalue while
+        # maintaining the condition number of the matrix
+        eigenvalues = np.maximum(eigenvalues, min_eigenvalue)
+
+        # (Orth * Diag) @ Orth.T = Orth @ np.diag(Diag) @ Orth.T
+        SPSD_A = (eigenvectors * eigenvalues) @ eigenvectors.T
+        return SPSD_A
 
     def get_Ret_free(self):
         if self._Ret_free is not None:
@@ -53,13 +107,18 @@ class Rebalance:
 
         return self._Ret_free
 
-    def market_statistics(self):
+    def market_statistics(self, annualized=True):
         """Generate statistics about the market
 
         The statistics should include the expected future log return for the
         next interval along with the covariance matrix.
 
-        Statistics should be given for annualized returns.
+        By default the statistics should be given for annualized returns.
+
+        Parameters
+        ----------
+        annualized : bool
+            Should returned statistics be annualized.
 
         Returns
         -------
@@ -367,7 +426,7 @@ class Rebalance:
         Mean-variance utility function, for optimizing portfolios while
         balancing risks and returns.
 
-        utility(w) = mu @ weight - (gamma \ 2) weight @ Sigma @ weight
+        utility(w) = mu @ weight - (gamma / 2) weight @ Sigma @ weight
 
         Parameters
         ----------
@@ -408,8 +467,9 @@ class Rebalance:
         for ineq_const in ineq_consts:
             constraints.append({"type": "ineq", "fun": ineq_const})
 
-        results = scipy.optimize.minimize(U, w_0, method="SLSQP",
-                                          bounds=bounds,
-                                          constraints=constraints)
+        result = scipy.optimize.minimize(U, w_0, method="SLSQP",
+                                         bounds=bounds,
+                                         constraints=constraints)
 
-        return results.x, results
+        print(f"{result.message} after {result.nit} iterations with utility u(weight) = {-100*result.fun:.1f}%")
+        return result.x
