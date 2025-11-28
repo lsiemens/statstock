@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.stats
 
 import rebalance
 import portfolio
@@ -64,6 +65,7 @@ class BayesianRebalance(rebalance.Rebalance):
             self.lambda_0 = lambda_0
 
         if mu_0 is None:
+            # use implied returns mu_0 = (gamma/2)Sigma @ w_market_cap
             self.mu_0 = np.zeros(self.width)
         else:
             self.mu_0 = mu_0
@@ -73,19 +75,36 @@ class BayesianRebalance(rebalance.Rebalance):
         else:
             self.Psi_0 = Psi_0
 
+    def find_posterior_parameters(self):
+        mask = np.isfinite(self.logprice).all(axis=0)
+        lnRet = np.diff(self.logprice[:, mask], axis=1)
+
+        # Find mean and scatter
+        x_bar = np.mean(lnRet, axis=1)
+        S = (lnRet - x_bar[:, None]) @ (lnRet - x_bar[:, None]).T
+        n = lnRet.shape[1]
+
+        # Bayesian update: find parameters of posterior NIW distribution
+        lambda_k = self.lambda_0 + n
+        nu_k = self.nu_0 + n
+        mu_k = (self.lambda_0*self.mu_0 + n*x_bar)/lambda_k
+        Psi_k = self.Psi_0 + S + (self.lambda_0*n/lambda_k)*((x_bar - self.mu_0) @ (x_bar - self.mu_0).T)
+        return lambda_k, nu_k, mu_k, Psi_k
+
     # TODO sample from NIW distribution instead of the market_statistics
     def sample_lnRet(self, n_intervals):
-         (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err), _ = self.market_statistics(annualized=False)
+        lambda_k, nu_k, mu_k, Psi_k = self.find_posterior_parameters()
 
-         sample_mu = self.rng.normal(ElnRet, ElnRet_err)
-         sample_Sigma = self.rng.normal(CovlnRet, CovlnRet_err)
+        sample_Sigma = scipy.stats.invwishart.rvs(nu_k, Psi_k, random_state=self.rng)
+        sample_mu = self.rng.multivariate_normal(mu_k, sample_Sigma/lambda_k)
 
-         if not self.check_SPSD(sample_Sigma):
-           sample_Sigma = self.fix_SPSD(sample_Sigma)
+        if not self.check_SPSD(sample_Sigma):
+            print("The sampled Sigma matrix required correction")
+            sample_Sigma = self.fix_SPSD(sample_Sigma)
 
-         sample_lnRet = self.rng.multivariate_normal(sample_mu, sample_Sigma, n_intervals)
-         sample_lnRet = sample_lnRet.T
-         return sample_lnRet
+        sample_lnRet = self.rng.multivariate_normal(sample_mu, sample_Sigma, n_intervals)
+        sample_lnRet = sample_lnRet.T
+        return sample_lnRet
 
     # TODO validate equation for the posterior, expected mu and Sigma and the
     # equations for the standard error
@@ -98,21 +117,8 @@ class BayesianRebalance(rebalance.Rebalance):
             case _:
                 raise NotImplimentedError(f"The interval {self.interval} is not implimented")
 
-        self.logprice.astype(np.float128)
-        mask = np.isfinite(self.logprice).all(axis=0)
-        lnRet = np.diff(self.logprice[:, mask], axis=1)
-
-        # Find mean and scatter
-        x_bar = np.mean(lnRet, axis=1)
-        S = (lnRet - x_bar[:, None]) @ (lnRet - x_bar[:, None]).T
-        n = lnRet.shape[1]
+        lambda_k, nu_k, mu_k, Psi_k = self.find_posterior_parameters()
         d = self.width
-
-        # Bayesian update: find parameters of posterior NIW distribution
-        lambda_k = self.lambda_0 + n
-        nu_k = self.nu_0 + n
-        mu_k = (self.lambda_0*self.mu_0 + n*x_bar)/lambda_k
-        Psi_k = self.Psi_0 + S + (self.lambda_0*n/lambda_k)*((x_bar - self.mu_0) @ (x_bar - self.mu_0).T)
 
         # Calculated expected mu, Sigma and their errors
         ElnRet = mu_k
@@ -131,7 +137,7 @@ class BayesianRebalance(rebalance.Rebalance):
             CovlnRet = CovlnRet*periods_year
             CovlnRet_err = CovlnRet_err*np.sqrt(periods_year)
 
-        return (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err), lnRet.shape[1]
+        return (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err)
 
 if __name__ == "__main__":
     #p_0 = portfolio.Portfolio("./all_holdings.csv", 365*2, "OneDay")
@@ -146,7 +152,7 @@ if __name__ == "__main__":
     gamma = MPT.get_gamma()
 
     def U(weight):
-        (mu, _), (Sigma, _), _ = MPT.market_statistics()
+        (mu, _), (Sigma, _) = MPT.market_statistics()
         return -(MPT.utility(mu, Sigma, weight, gamma) + (0.1/MPT.width)/np.sum(weight**2))
 
     bounds = [(0.0, 1.0) for i in range(MPT.width)]

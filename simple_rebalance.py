@@ -14,7 +14,7 @@ class SimpleRebalance(rebalance.Rebalance):
     """
 
     def sample_lnRet(self, n_intervals):
-        (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err), _ = self.market_statistics(annualized=False)
+        (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err) = self.market_statistics(annualized=False)
 
         sample_mu = self.rng.normal(ElnRet, ElnRet_err)
         sample_Sigma = self.rng.normal(CovlnRet, CovlnRet_err)
@@ -53,7 +53,7 @@ class SimpleRebalance(rebalance.Rebalance):
             CovlnRet = CovlnRet*periods_year
             CovlnRet_err = CovlnRet_err*np.sqrt(periods_year)
 
-        return (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err), lnRet.shape[1]
+        return (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err)
 
 
 if __name__ == "__main__":
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     gamma = MPT.get_gamma()
 
     def U(weight):
-        (mu, _), (Sigma, _), _ = MPT.market_statistics()
+        (mu, _), (Sigma, _) = MPT.market_statistics()
         return -(MPT.utility(mu, Sigma, weight, gamma) + (0.1/MPT.width)/np.sum(weight**2))
 
     bounds = [(0.0, 1.0) for i in range(MPT.width)]

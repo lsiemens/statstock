@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 class Forcast:
     def __init__(self, rebalance, weights, V_0=1000):
       self.ticker = rebalance.tickers
+      self.width = rebalance.width
       self.logprice = rebalance.logprice[:, -1]
       self.interval = rebalance.interval
 
@@ -44,13 +45,13 @@ class Forcast:
             plt.ylabel("Relative log portfolio value")
         plt.show()
 
-        mean_ln_value = np.mean(np.log10(values), axis=0)
-        var_ln_value = np.var(np.log10(values), axis=0)
+        mean_log_value = np.mean(np.log10(values), axis=0)
+        var_log_value = np.var(np.log10(values), axis=0)
 
-        mean_value = np.exp(mean_ln_value + 0.5*var_ln_value)
-        band_center = np.exp(mean_ln_value)
-        band_low = np.exp(mean_ln_value - np.sqrt(var_ln_value))
-        band_high = np.exp(mean_ln_value + np.sqrt(var_ln_value))
+        mean_value = 10**(mean_log_value + 0.5*var_log_value)
+        band_center = 10**(mean_log_value)
+        band_low = 10**(mean_log_value - np.sqrt(var_log_value))
+        band_high = 10**(mean_log_value + np.sqrt(var_log_value))
         index = np.arange(len(band_center))
 
         plt.plot(mean_value, "k--", label="$\\bar{p}$")
@@ -62,9 +63,9 @@ class Forcast:
         plt.legend()
         plt.show()
 
-        band_center = mean_ln_value - mean_ln_value[0]
-        band_low = band_center - np.sqrt(var_ln_value)
-        band_high = band_center + np.sqrt(var_ln_value)
+        band_center = mean_log_value - mean_log_value[0]
+        band_low = band_center - np.sqrt(var_log_value)
+        band_high = band_center + np.sqrt(var_log_value)
         plt.plot(band_center, "k-", label="$\\bar{\\ln{p}}$")
         plt.fill_between(index, band_low, band_high, alpha=0.5, label="$\\bar{\\ln{p}} \\pm \\sigma$")
         plt.title("Expected portfolio log range")

@@ -126,8 +126,6 @@ class Rebalance:
             ElnRet: Expected future log returns and standard error
         tuple(Array(width, width), Array(width, width))
             CovlnRet: Covariance matrix of the future log returns and standard error
-        int
-            Number of samples
         """
         raise NotImplementedError("`market_statistics` must be implemented in a child class")
 
@@ -157,7 +155,7 @@ class Rebalance:
         """
 
         # Get annuallized returns and covarience matrix
-        (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err), n = self.market_statistics()
+        (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err) = self.market_statistics()
 
         VarlnRet = np.diag(CovlnRet)
         VarlnRet_err = np.diag(CovlnRet_err)
@@ -284,7 +282,7 @@ class Rebalance:
         """
 
         # Get annuallized returns and covarience matrix
-        (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err), n = self.market_statistics()
+        (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err) = self.market_statistics()
 
         VarlnRet = np.diag(CovlnRet)
         VarlnRet_err = np.diag(CovlnRet_err)
