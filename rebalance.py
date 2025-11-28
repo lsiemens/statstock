@@ -51,14 +51,14 @@ class Rebalance:
         ----------
         n_intervals : int
             Number of samples to return
-        
+
         Returns
         -------
         array(width, n_intervals)
             Random Samples of log returns matching the observed statistics.
         """
         raise NotImplementedError("sample_lnRet must be implemented in a subclass")
-  
+
     def check_SPSD(self, A, rtol=1e-5, atol=1e-8):
         """Check if matrix is symmetric positive semidefinite
         """
@@ -73,7 +73,7 @@ class Rebalance:
             return False
 
         diagonal, orthogonal = np.linalg.eigh(A_sym)
-        
+
         if np.min(diagonal) < 0:
             return False
 
@@ -127,11 +127,13 @@ class Rebalance:
         tuple(Array(width, width), Array(width, width))
             CovlnRet: Covariance matrix of the future log returns and standard error
         """
+
         raise NotImplementedError("`market_statistics` must be implemented in a child class")
 
     def data_info(self):
         """Show datapoints per ticker
         """
+
         data_points = np.sum(np.isfinite(self.logprice), axis=1)
         print(f"The time series has {self.logprice.shape[1]} points sampled with a {self.interval} interval")
         print("Trading periods: ")
@@ -157,9 +159,6 @@ class Rebalance:
         # Get annuallized returns and covarience matrix
         (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err) = self.market_statistics()
 
-        VarlnRet = np.diag(CovlnRet)
-        VarlnRet_err = np.diag(CovlnRet_err)
-
         market_symbol_id = None
         if "VTI" in self.tickers:
             market_symbol_id = self.tickers.index("VTI")
@@ -172,7 +171,6 @@ class Rebalance:
         sim_Ret_free = None
         if market_symbol_id is not None:
             sim_Ret_free = self.get_Ret_free()
-
 
         print("\nPortfolio statistics:")
         # Get portfolio log returns and simple returns
@@ -326,7 +324,7 @@ class Rebalance:
             print(f"the return is {100*sim_Ret_market:.1f}% ± {100*sim_Ret_market_err:.1f} and the risk free return is {100*sim_Ret_free:.1f}%")
 
         # Show statistics for individual stocks
-        print(f"Market statistics, {n} samples at {self.interval} intervals")
+        print(f"Market statistics")
         for symbolID in range(self.width):
             _sim_Ret = sim_Ret[symbolID]
             _sim_Ret_err = sim_Ret_err[symbolID]
@@ -338,6 +336,8 @@ class Rebalance:
             _sim_Ret_high = sim_Ret_high[symbolID]
 
             print(f"\nTicker {self.tickers[symbolID]}:")
+            print(f"Expected mean ln return: {ElnRet[symbolID]:.3f} ± {ElnRet_err[symbolID]:.3f}")
+            print(f"Expected ln return range: ({ElnRet[symbolID] - np.sqrt(VarlnRet[symbolID]):.3f}, {ElnRet[symbolID] + np.sqrt(VarlnRet[symbolID]):.3f}), given sample standard deviation: {np.sqrt(VarlnRet[symbolID]):.3f} ± {(VarlnRet_err[symbolID]/(2*np.sqrt(VarlnRet[symbolID]))):.3f}")
             print(f"Expected mean return: {100*_sim_Ret:.1f}% ± {100*_sim_Ret_err:.1f}%")
             print(f"Expected return range: ({100*_sim_Ret_low:.1f}%, {100*_sim_Ret_high:.1f}%), given sample standard deviation: {100*np.sqrt(_Var_sim_Ret):.1f}% ± {100*(_Var_sim_Ret_err/(2*np.sqrt(_Var_sim_Ret))):.1f}%")
 

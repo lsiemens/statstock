@@ -49,30 +49,41 @@ class BayesianRebalance(rebalance.Rebalance):
         that parameter is replaced with one corresponding to a relatively
         uninformative prior.
         """
-        epsilon = 1e-3
+        match self.interval:
+            case "OneDay":
+                periods_year = 52*5
+            case "OneWeek":
+                periods_year = 52
+            case _:
+                raise NotImplimentedError(f"The interval {self.interval} is not implimented")
 
         if nu_0 is None:
-            self.nu_0 = self.width + 2
+            self.nu_0 = periods_year + self.width - 1
         else:
             if not (nu_0 > self.width - 1):
                 raise ValueError(f"For convergent results nu_0 > n - 1, but nu_0 = {nu_0:.1f} <= {self.width - 1} was given.")
             self.nu_0 = nu_0
 
         if lambda_0 is None:
-            self.lambda_0 = epsilon
+            self.lambda_0 = periods_year
         else:
             if not (lambda_0 > 0):
                 raise ValueError(f"For convergent results lambda_0 > 0, but lambda_0 = {lambda_0:.1f} was given.")
             self.lambda_0 = lambda_0
 
         if mu_0 is None:
-            # use implied returns mu_0 = (gamma/2)Sigma @ w_market_cap
-            self.mu_0 = np.zeros(self.width)
+            # corresponds to a 6.7% return
+            self.mu_0 = (0.065/periods_year)*np.ones(self.width) # scale to the interval
         else:
             self.mu_0 = mu_0
 
         if Psi_0 is None:
-            self.Psi_0 = epsilon*np.identity(self.width)
+            # corresponds to a 15.4% standard deviation
+            varience = 0.02/periods_year # scale to the interval
+            correlation = 0.2
+            #CovlnRet_0 = Psi_0/(nu_0 - d - 1)
+            Cov_0 = varience*(correlation*np.ones((self.width, self.width)) + (1 - correlation)*np.identity(self.width))
+            self.Psi_0 = (self.nu_0 - self.width - 1)*Cov_0
         else:
             self.Psi_0 = Psi_0
 
@@ -142,8 +153,8 @@ class BayesianRebalance(rebalance.Rebalance):
 
 if __name__ == "__main__":
     #p_0 = portfolio.Portfolio("./all_holdings.csv", 365*2, "OneDay")
-    p_0 = portfolio.Portfolio("./all_holdings.csv", 52*15, "OneWeek")
-    MPT = BayesianRebalance(p_0, ["APPL", "ARM", "IBIT", "U", "DJT", "DGRC.TO", "LHX"])
+    p_0 = portfolio.Portfolio("./all_holdings.csv", 52*3, "OneWeek")
+    MPT = BayesianRebalance(p_0, ["APPL", "ARM", "IBIT", "U", "DJT", "DGRC.TO", "LHX", "GME"])
     MPT.data_info()
     #MPT.show_market_statistics()
 
@@ -154,7 +165,7 @@ if __name__ == "__main__":
 
     def U(weight):
         (mu, _), (Sigma, _) = MPT.market_statistics()
-        return -(MPT.utility(mu, Sigma, weight, gamma) + (0.1/MPT.width)/np.sum(weight**2))
+        return -(MPT.utility(mu, Sigma, weight, gamma) + (0.2/MPT.width)/np.sum(weight**2))
 
     bounds = [(0.0, 1.0) for i in range(MPT.width)]
     weights = MPT.solver(U, eq_consts=[g], bounds=bounds)
@@ -163,5 +174,5 @@ if __name__ == "__main__":
 
     prediction = forcast.Forcast(MPT, weights)
 
-    values = prediction.n_forcasts(52*15, 1000)
+    values = prediction.n_forcasts(52, 1000)
     prediction.show_n_forcasts(values)

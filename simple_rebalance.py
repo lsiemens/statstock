@@ -70,7 +70,7 @@ if __name__ == "__main__":
 
     def U(weight):
         (mu, _), (Sigma, _) = MPT.market_statistics()
-        return -(MPT.utility(mu, Sigma, weight, gamma) + (0.1/MPT.width)/np.sum(weight**2))
+        return -(MPT.utility(mu, Sigma, weight, gamma) + (0.2/MPT.width)/np.sum(weight**2))
 
     bounds = [(0.0, 1.0) for i in range(MPT.width)]
     weights = MPT.solver(U, eq_consts=[g], bounds=bounds)
@@ -78,5 +78,5 @@ if __name__ == "__main__":
     MPT.show_portfolio_statistics(weights)
 
     prediction = forcast.Forcast(MPT, weights)
-    values = prediction.n_forcasts(52*15, 1000)
+    values = prediction.n_forcasts(52, 1000)
     prediction.show_n_forcasts(values)
