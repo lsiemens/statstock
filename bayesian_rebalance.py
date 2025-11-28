@@ -39,6 +39,7 @@ class BayesianRebalance(rebalance.Rebalance):
     In the limit of a large number of samples the mean and standard error of mu
     and Sigma will tend to the same values as in the SimpleRebalance class.
 
+    https://isdsa.org/jbds/fulltext/v1n2/p2/
     """
 
     def initialize(self, nu_0=None, lambda_0=None, mu_0=None, Psi_0=None):
