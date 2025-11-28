@@ -103,7 +103,6 @@ class BayesianRebalance(rebalance.Rebalance):
         Psi_k = self.Psi_0 + S + (self.lambda_0*n/lambda_k)*((x_bar - self.mu_0) @ (x_bar - self.mu_0).T)
         return lambda_k, nu_k, mu_k, Psi_k
 
-    # TODO sample from NIW distribution instead of the market_statistics
     def sample_lnRet(self, n_intervals):
         lambda_k, nu_k, mu_k, Psi_k = self.find_posterior_parameters()
 
@@ -118,8 +117,6 @@ class BayesianRebalance(rebalance.Rebalance):
         sample_lnRet = sample_lnRet.T
         return sample_lnRet
 
-    # TODO validate equation for the posterior, expected mu and Sigma and the
-    # equations for the standard error
     def market_statistics(self, annualized=True):
         match self.interval:
             case "OneDay":
@@ -139,7 +136,7 @@ class BayesianRebalance(rebalance.Rebalance):
         ElnRet_err = np.sqrt(np.diag(Psi_k)/(lambda_k*(nu_k - d + 1)))
         _off_axis = (nu_k - d + 1)*Psi_k**2
         _diagonal = (nu_k - d - 1)*np.outer(np.diag(Psi_k), np.diag(Psi_k))
-        CovlnRet_err = np.sqrt((_off_axis + _diagonal)/((nu_k -d)*(nu_k - d - 1)**2*(nu_k - d - 3)))
+        CovlnRet_err = np.sqrt((_off_axis + _diagonal)/((nu_k - d)*(nu_k - d - 1)**2*(nu_k - d - 3)))
 
         # annualize the mean and covarience
         if annualized:
