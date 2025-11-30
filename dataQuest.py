@@ -339,6 +339,109 @@ class QuestradeClient:
         extended_candles[m:, :] = candles
         return (extended_candles, interval, symbol)
 
+    def options(self, symbol, strike, width):
+        """
+
+        Parameters
+        ----------
+        symbol : tuple
+        strike : float
+            Strike price
+        width : float
+            Range around the strike price for the data
+
+        Returns
+        -------
+        tuple : (int, int, float, float, float, int, int, string)
+            The tuple contains the following
+            - days to expiry
+            - days from last trade
+            - strike price
+            - price high
+            - price low
+            - trade volume
+            - open interest
+            - option type "call" or "put"
+        """
+
+        try:
+            symbolID = int(symbol[0])
+        except ValueError:
+            symbol = self.find_symbol(symbol)
+            return self.options(symbol, strike, width)
+
+        self._ratelimiter.call()
+        result = self.request("GET", f"/v1/symbols/{symbolID}/options")
+        option_chains = result["optionChain"]
+        date = datetime.datetime.fromisoformat(self.get_time())
+
+        multiplier = None
+        option_type = None
+        meta_data = [] # [(days_to_expiry, strike, callSymbolID, putSymbolID)]
+        for i in range(len(option_chains)):
+            option_chain = option_chains[i]
+
+            expiry_date = datetime.datetime.fromisoformat(option_chain["expiryDate"])
+            days_to_expiry = (expiry_date - date).days
+            if option_type is None:
+                option_type = option_chain["optionExerciseType"]
+
+            assert len(option_chain["chainPerRoot"]) == 1, "Expect only one root"
+            chain_root = option_chain["chainPerRoot"][0]
+            if multiplier is None:
+                multiplier = chain_root["multiplier"]
+            chain_strikes = chain_root["chainPerStrikePrice"]
+
+            for chain_strike in chain_strikes:
+                strike_price = chain_strike["strikePrice"]
+                callSymbolID = chain_strike["callSymbolId"]
+                putSymbolID = chain_strike["putSymbolId"]
+                if (strike_price >= strike - width/2) and (strike_price <= strike + width/2):
+                    meta_data.append((days_to_expiry, strike_price, callSymbolID, putSymbolID))
+
+        data = []
+
+        chunk = meta_data[:50]
+        meta_data = meta_data[50:]
+        while(len(chunk) > 0):
+            data += self._option_data(chunk)
+            chunk = meta_data[:50]
+            meta_data = meta_data[50:]
+        return data
+
+    def _option_data(self, meta_data):
+        self._ratelimiter.call()
+        date = datetime.datetime.fromisoformat(self.get_time())
+        IDs = np.empty(2*len(meta_data), dtype=int)
+        for i in range(len(meta_data)):
+            IDs[2*i] = meta_data[i][2]
+            IDs[2*i + 1] = meta_data[i][3]
+
+        payload = {"optionIds": IDs.tolist()}
+        result = self.request("POST", f"/v1/markets/quotes/options", json_body=payload)
+        optionQuotes = result["optionQuotes"]
+
+        data = [] # (days_to_expiry, days_from_trade, strike, high, low, volume, open_interest, option_type)
+        for i, quote in enumerate(optionQuotes):
+            symbolID = quote["symbolId"]
+            if IDs[i] != symbolID:
+                raise RuntimeError("Questrade symbolID missmatch")
+            lastTradeTime = datetime.datetime.fromisoformat(quote["lastTradeTime"])
+            lastTradeDay = (date - lastTradeTime).days
+            volume = quote["volume"]
+            highPrice = quote["highPrice"]
+            lowPrice = quote["lowPrice"]
+            openInterest = quote["openInterest"]
+
+            option_type = None
+            if i % 2 == 0:
+                option_type = "call"
+            else:
+                option_type = "put"
+
+            data.append((meta_data[i//2][0], lastTradeDay, meta_data[i//2][1],
+                         highPrice, lowPrice, volume, openInterest, option_type))
+        return data
 
 if __name__ == "__main__":
     from matplotlib import pyplot as plt
@@ -356,4 +459,15 @@ if __name__ == "__main__":
     plt.xlabel(interval[3:])
     plt.ylabel(f"VWAP ({currency})")
     plt.title(ticker)
+    plt.show()
+
+    price, _ = client.get_quote(ticker)
+    options = client.options(ticker, price, price/2)
+
+    strikes1 = [strike for (_, _, strike, high, low, _, _, otype) in options if otype == "call"]
+    strikes2 = [strike for (_, _, strike, high, low, _, _, otype) in options if otype == "put"]
+    data1 = [(high + low)/2 for (_, _, strike, high, low, _, _, otype) in options if otype == "call"]
+    data2 = [(high + low)/2 for (_, _, strike, high, low, _, _, otype) in options if otype == "put"]
+    plt.scatter(strikes1, data1)
+    plt.scatter(strikes2, data2)
     plt.show()
