@@ -386,7 +386,8 @@ class QuestradeClient:
             if option_type is None:
                 option_type = option_chain["optionExerciseType"]
 
-            assert len(option_chain["chainPerRoot"]) == 1, "Expect only one root"
+            if (len(option_chain["chainPerRoot"]) > 1):
+                assert option_chain["chainPerRoot"][0]["optionRoot"] == symbol[1], "First should match the ticker"
             chain_root = option_chain["chainPerRoot"][0]
             if multiplier is None:
                 multiplier = chain_root["multiplier"]

@@ -28,6 +28,7 @@ class Portfolio:
         # Cached vectors
         self.logprice = None
         self.logerror = None
+        self.options = None
 
         data = np.genfromtxt(self.fname, delimiter=",", dtype=None,
                              encoding=None, skip_header=1, usecols=(0, 1),
@@ -58,6 +59,7 @@ class Portfolio:
         self.logprice = np.empty(shape=(self.width, self.length))
         self.logerror = np.empty(shape=(self.width, self.length))
         for i in range(self.width):
+            print(f"Load candles: {self.tickers[i]}")
             symbol = client.find_symbol(self.tickers[i])
 
             data = client.get_n_candles(symbol, self.length, self.interval)
@@ -65,16 +67,24 @@ class Portfolio:
             self.logprice[i, :] = evector.vector[:, 0]
             self.logerror[i, :] = evector.vector[:, 1]
 
+        self.options = []
+        for i in range(self.width):
+            ticker = self.tickers[i]
+
+            print(f"Load options: {ticker}")
+            price, symbol = client.get_quote(ticker)
+            self.options.append(client.options(symbol, price, 10))
+
         self._pickle(cache_name)
 
     def _unpickle(self, fname):
         with open(fname, "rb") as fin:
             data = pickle.load(fin)
-        self.logprice, self.logerror = data
+        self.logprice, self.logerror, self.options = data
         print("Load data from cache")
 
     def _pickle(self, fname):
-        data = (self.logprice, self.logerror)
+        data = (self.logprice, self.logerror, self.options)
         with open(fname, "wb") as fout:
             pickle.dump(data, fout, protocol=pickle.HIGHEST_PROTOCOL)
         print("Save data to cache")
