@@ -77,6 +77,14 @@ if __name__ == "__main__":
 
     MPT.show_portfolio_statistics(weights)
 
-    prediction = forcast.Forcast(MPT, weights)
-    values = prediction.n_forcasts(52, 1000)
-    prediction.show_n_forcasts(values)
+    def cash_flow(year):
+        if year > 65:
+            return -25000
+        else:
+            return 0.1*np.maximum(40000*(year - 10)/55, 0)
+
+    prediction = forcast.Forcast(MPT, weights, V_0=1000, cash_flow=cash_flow)
+    #data = prediction.single_forcast(52*8 + 26)
+    #prediction.show_single_forcast(*data)
+    data = prediction.n_forcasts(52*90, 1000)
+    prediction.show_n_forcasts(*data)

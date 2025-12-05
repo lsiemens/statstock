@@ -150,7 +150,7 @@ class BayesianRebalance(rebalance.Rebalance):
 
 if __name__ == "__main__":
     #p_0 = portfolio.Portfolio("./all_holdings.csv", 365*2, "OneDay")
-    p_0 = portfolio.Portfolio("./all_holdings.csv", 52*3, "OneWeek")
+    p_0 = portfolio.Portfolio("./all_holdings.csv", 52*15, "OneWeek")
     MPT = BayesianRebalance(p_0, ["APPL", "ARM", "IBIT", "U", "DJT", "DGRC.TO", "LHX", "GME"])
     MPT.data_info()
     #MPT.show_market_statistics()
@@ -169,7 +169,15 @@ if __name__ == "__main__":
 
     MPT.show_portfolio_statistics(weights)
 
-    prediction = forcast.Forcast(MPT, weights)
+    def cash_flow(year):
+        if year > 65:
+            return -25000
+        else:
+            return 0.1*np.maximum(40000*(year - 10)/55, 0)
 
-    values = prediction.n_forcasts(52, 1000)
-    prediction.show_n_forcasts(values)
+    prediction = forcast.Forcast(MPT, weights, V_0=1000, cash_flow=cash_flow)
+
+    #data = prediction.single_forcast(52*8 + 26)
+    #prediction.show_single_forcast(*data)
+    data = prediction.n_forcasts(52*90, 1000)
+    prediction.show_n_forcasts(*data)
