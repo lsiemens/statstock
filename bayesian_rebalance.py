@@ -14,27 +14,36 @@ class BayesianRebalance(rebalance.Rebalance):
     tickers is assumed to be distributed as an n-dimensional multivariate normal
     distribution with mean mu and covariance Sigma. The prior distribution of
     (mu, Sigma) is assumed to be a Normal-Inverse Wishart distribution for
-    simplicity (it is the conjugate prior of the multivariate normal
-    distribution).
+    simplicity.
 
     x | mu, Sigma ~ N(mu, Sigma)
-    (mu, Sigma) ~ NIW(mu_0, lambda, psi, nu) = N(mu | mu_0, Sigma/lambda) IW(Sigma | psi, nu)
+    (mu, Sigma) ~ NIW(mu_0, lambda_0, Psi_0, nu_0) = N(mu | mu_0, Sigma/lambda_0) IW(Sigma | Psi_0, nu_0)
 
-    dim(mu_0) = n
-    lambda > 0, nu > n - 1
+    There are restrictions on the value of nu_0 based on the dimension of the
+    problem with n = dim(mu_0) then nu_0 > n - 1 also note lambda_0 > 0
 
-    mean(psi) = psi/(nu - n - 1)
+    The mean mu and sigma sampled from the NIW prior is given by
 
-    poasterior (mu, Sigma | Vec(x)) ~ NIW(mu_k, lambda_k, psi_k, nu_k)
+    mean(mu) = mu_0
+    mean(psi) = Psi_0/(nu_0 - n - 1)
+
+    The NIW distribution is the conjugate prior of the multivariate normal
+    distribution so the posterior is also distributed as a NIW.
+
+    (mu, Sigma | Vec(x)) ~ NIW(mu_k, lambda_k, psi_k, nu_k)
+
+    Where the posterior parameters are updated from the prior according to the
+    following rules where x is a vector of k samples.
 
     lambda_k = lambda_0 + k
     nu_k = lambda_0 + k
-    mu_k = (lambda_0 mu_0 + k Mean(x))/lambda_k
+    mu_k = (lambda_0*mu_0 + k*Mean(x))/lambda_k
     psi_k = psi_0 + k*Cov(x, x) + (lambda_0*k/lambda_k)*(bar(x) - mu_0)*(bar(x) - mu_0)
+
+    Like with the prior the mean from the posterior distribution is given by,
 
     Mean(mu | x) = mu_k
     Mean(Sigma | x) = psi_k / (nu_k - n - 1)
-
 
     In the limit of a large number of samples the mean and standard error of mu
     and Sigma will tend to the same values as in the SimpleRebalance class.
@@ -179,5 +188,5 @@ if __name__ == "__main__":
 
     #data = prediction.single_forcast(52*8 + 26)
     #prediction.show_single_forcast(*data)
-    data = prediction.n_forcasts(52*90, 1000)
+    data = prediction.n_forcasts(52*10, 1000)
     prediction.show_n_forcasts(*data)

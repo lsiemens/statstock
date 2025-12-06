@@ -86,5 +86,5 @@ if __name__ == "__main__":
     prediction = forcast.Forcast(MPT, weights, V_0=1000, cash_flow=cash_flow)
     #data = prediction.single_forcast(52*8 + 26)
     #prediction.show_single_forcast(*data)
-    data = prediction.n_forcasts(52*90, 1000)
+    data = prediction.n_forcasts(52*10, 1000)
     prediction.show_n_forcasts(*data)
