@@ -59,6 +59,7 @@ class SimpleRebalance(rebalance.Rebalance):
 if __name__ == "__main__":
     #p_0 = portfolio.Portfolio("./all_holdings.csv", 365*2, "OneDay")
     p_0 = portfolio.Portfolio("./all_holdings.csv", 52*15, "OneWeek")
+    #p_0 = portfolio.Portfolio("./long_holdings.csv", 52*30, "OneWeek")
     MPT = SimpleRebalance(p_0, ["APPL", "ARM", "IBIT", "U", "DJT", "DGRC.TO", "LHX", "GME"])
     MPT.data_info()
     #MPT.show_market_statistics()

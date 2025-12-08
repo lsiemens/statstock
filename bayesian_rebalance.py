@@ -1,3 +1,45 @@
+"""
+Prices are assumed to be log normal dependent random variables. The log returns
+for n tickers is assumed to be distributed as an n-dimensional multivariate
+normal distribution with mean mu and covariance Sigma. The prior distribution of
+(mu, Sigma) is assumed to be a Normal-Inverse Wishart distribution for
+simplicity.
+
+x | mu, Sigma ~ N(mu, Sigma)
+(mu, Sigma) ~ NIW(mu_0, lambda_0, Psi_0, nu_0) = N(mu | mu_0, Sigma/lambda_0) IW(Sigma | Psi_0, nu_0)
+
+There are restrictions on the value of nu_0 based on the dimension of the
+problem with n = dim(mu_0) then nu_0 > n - 1 also note lambda_0 > 0
+
+The mean mu and sigma sampled from the NIW prior is given by
+
+mean(mu) = mu_0
+mean(psi) = Psi_0/(nu_0 - n - 1)
+
+The NIW distribution is the conjugate prior of the multivariate normal
+distribution so the posterior is also distributed as a NIW.
+
+(mu, Sigma | Vec(x)) ~ NIW(mu_k, lambda_k, psi_k, nu_k)
+
+Where the posterior parameters are updated from the prior according to the
+following rules where x is a vector of k samples.
+
+lambda_k = lambda_0 + k
+nu_k = lambda_0 + k
+mu_k = (lambda_0*mu_0 + k*Mean(x))/lambda_k
+psi_k = psi_0 + k*Cov(x, x) + (lambda_0*k/lambda_k)*(bar(x) - mu_0)*(bar(x) - mu_0)
+
+Like with the prior the mean from the posterior distribution is given by,
+
+Mean(mu | x) = mu_k
+Mean(Sigma | x) = psi_k / (nu_k - n - 1)
+
+In the limit of a large number of samples the mean and standard error of mu
+and Sigma will tend to the same values as in the SimpleRebalance class.
+
+https://isdsa.org/jbds/fulltext/v1n2/p2/
+"""
+
 import numpy as np
 import scipy.stats
 
@@ -6,49 +48,11 @@ import portfolio
 import forcast
 
 
+
 class BayesianRebalance(rebalance.Rebalance):
     """Bayesian MPT rebalancing
 
-    Calculate expected future log returns using bayesian statistics. Prices are
-    assumed to be log normal dependent random variables. The log returns for n
-    tickers is assumed to be distributed as an n-dimensional multivariate normal
-    distribution with mean mu and covariance Sigma. The prior distribution of
-    (mu, Sigma) is assumed to be a Normal-Inverse Wishart distribution for
-    simplicity.
-
-    x | mu, Sigma ~ N(mu, Sigma)
-    (mu, Sigma) ~ NIW(mu_0, lambda_0, Psi_0, nu_0) = N(mu | mu_0, Sigma/lambda_0) IW(Sigma | Psi_0, nu_0)
-
-    There are restrictions on the value of nu_0 based on the dimension of the
-    problem with n = dim(mu_0) then nu_0 > n - 1 also note lambda_0 > 0
-
-    The mean mu and sigma sampled from the NIW prior is given by
-
-    mean(mu) = mu_0
-    mean(psi) = Psi_0/(nu_0 - n - 1)
-
-    The NIW distribution is the conjugate prior of the multivariate normal
-    distribution so the posterior is also distributed as a NIW.
-
-    (mu, Sigma | Vec(x)) ~ NIW(mu_k, lambda_k, psi_k, nu_k)
-
-    Where the posterior parameters are updated from the prior according to the
-    following rules where x is a vector of k samples.
-
-    lambda_k = lambda_0 + k
-    nu_k = lambda_0 + k
-    mu_k = (lambda_0*mu_0 + k*Mean(x))/lambda_k
-    psi_k = psi_0 + k*Cov(x, x) + (lambda_0*k/lambda_k)*(bar(x) - mu_0)*(bar(x) - mu_0)
-
-    Like with the prior the mean from the posterior distribution is given by,
-
-    Mean(mu | x) = mu_k
-    Mean(Sigma | x) = psi_k / (nu_k - n - 1)
-
-    In the limit of a large number of samples the mean and standard error of mu
-    and Sigma will tend to the same values as in the SimpleRebalance class.
-
-    https://isdsa.org/jbds/fulltext/v1n2/p2/
+    Calculate expected future log returns using bayesian statistics.
     """
 
     def initialize(self, nu_0=None, lambda_0=None, mu_0=None, Psi_0=None):
@@ -96,7 +100,7 @@ class BayesianRebalance(rebalance.Rebalance):
         else:
             self.Psi_0 = Psi_0
 
-    def find_posterior_parameters(self):
+    def get_posterior_parameters(self):
         mask = np.isfinite(self.logprice).all(axis=0)
         lnRet = np.diff(self.logprice[:, mask], axis=1)
 
@@ -113,7 +117,7 @@ class BayesianRebalance(rebalance.Rebalance):
         return lambda_k, nu_k, mu_k, Psi_k
 
     def sample_lnRet(self, n_intervals):
-        lambda_k, nu_k, mu_k, Psi_k = self.find_posterior_parameters()
+        lambda_k, nu_k, mu_k, Psi_k = self.get_posterior_parameters()
 
         sample_Sigma = scipy.stats.invwishart.rvs(nu_k, Psi_k, random_state=self.rng)
         sample_mu = self.rng.multivariate_normal(mu_k, sample_Sigma/lambda_k)
@@ -135,7 +139,7 @@ class BayesianRebalance(rebalance.Rebalance):
             case _:
                 raise NotImplimentedError(f"The interval {self.interval} is not implimented")
 
-        lambda_k, nu_k, mu_k, Psi_k = self.find_posterior_parameters()
+        lambda_k, nu_k, mu_k, Psi_k = self.get_posterior_parameters()
         d = self.width
 
         # Calculated expected mu, Sigma and their errors
@@ -160,6 +164,7 @@ class BayesianRebalance(rebalance.Rebalance):
 if __name__ == "__main__":
     #p_0 = portfolio.Portfolio("./all_holdings.csv", 365*2, "OneDay")
     p_0 = portfolio.Portfolio("./all_holdings.csv", 52*15, "OneWeek")
+    #p_0 = portfolio.Portfolio("./long_holdings.csv", 52*30, "OneWeek")
     MPT = BayesianRebalance(p_0, ["APPL", "ARM", "IBIT", "U", "DJT", "DGRC.TO", "LHX", "GME"])
     MPT.data_info()
     #MPT.show_market_statistics()

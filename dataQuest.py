@@ -225,6 +225,9 @@ class QuestradeClient:
         for symbol in symbols["symbols"]:
             if symbol["symbol"] == ticker.upper():
                 return (symbol["symbolId"], symbol["symbol"], symbol["currency"])
+        print(f"\nFailed to find symbol \"{ticker}\"")
+        for symbol in symbols["symbols"]:
+            print(f"{symbol['symbol']} ({symbol['securityType']}): {symbol['description']}")
         raise ValueError(f"Failed to get a symbol for the ticker: {ticker}")
 
     def get_quote(self, symbol):
