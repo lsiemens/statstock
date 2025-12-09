@@ -13,6 +13,8 @@ class SimpleRebalance(rebalance.Rebalance):
     past log returns.
     """
 
+    _rebalance_name = "Mean-Covariance"
+
     def sample_lnRet(self, n_intervals):
         (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err) = self.market_statistics(annualized=False)
 
@@ -62,7 +64,7 @@ if __name__ == "__main__":
     #p_0 = portfolio.Portfolio("./long_holdings.csv", 52*30, "OneWeek")
     MPT = SimpleRebalance(p_0, ["APPL", "ARM", "IBIT", "U", "DJT", "DGRC.TO", "LHX", "GME"])
     MPT.data_info()
-    #MPT.show_market_statistics()
+    MPT.show_market_statistics()
 
     def g(w):
         return 1 - np.sum(w)
@@ -85,6 +87,7 @@ if __name__ == "__main__":
             return 0.1*np.maximum(40000*(year - 10)/55, 0)
 
     prediction = forcast.Forcast(MPT, weights, V_0=1000, cash_flow=cash_flow)
+
     #data = prediction.single_forcast(52*8 + 26)
     #prediction.show_single_forcast(*data)
     data = prediction.n_forcasts(52*10, 1000)

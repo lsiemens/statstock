@@ -55,6 +55,8 @@ class BayesianRebalance(rebalance.Rebalance):
     Calculate expected future log returns using bayesian statistics.
     """
 
+    _rebalance_name = "Bayesian"
+
     def initialize(self, nu_0=None, lambda_0=None, mu_0=None, Psi_0=None):
         """Initialize prior
 
@@ -167,7 +169,7 @@ if __name__ == "__main__":
     #p_0 = portfolio.Portfolio("./long_holdings.csv", 52*30, "OneWeek")
     MPT = BayesianRebalance(p_0, ["APPL", "ARM", "IBIT", "U", "DJT", "DGRC.TO", "LHX", "GME"])
     MPT.data_info()
-    #MPT.show_market_statistics()
+    MPT.show_market_statistics()
 
     def g(w):
         return 1 - np.sum(w)

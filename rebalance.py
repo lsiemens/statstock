@@ -10,6 +10,8 @@ class Rebalance:
     Framework for rebalancing schemes based on mean-variance analysis.
     """
 
+    _rebalance_name = "None"
+
     def __init__(self, portfolio, ignore=[]):
         mask = [(ticker not in ignore) for ticker in portfolio.tickers]
 
@@ -269,7 +271,12 @@ class Rebalance:
                 weight_str += "\n         "
         print(weight_str)
 
-    def show_market_statistics(self):
+    def show_custom_statistics(self):
+        """Statistics particular to a given rebalance method
+        """
+        pass
+
+    def show_market_statistics(self, show_plot=False):
         """Print useful market statistics
 
         Use the statistics from market_statistics to calculate useful metrics
@@ -278,6 +285,7 @@ class Rebalance:
 
         If avaliable VTI or SPY will be used as the market return.
         """
+        self.show_custom_statistics()
 
         # Get annuallized returns and covarience matrix
         (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err) = self.market_statistics()
@@ -384,16 +392,17 @@ class Rebalance:
 
         # show Covariance condition number and plot the correlation matrix.
         print(f"Covariance matrix condition number: {np.linalg.cond(CovlnRet)}\n")
-        pearson = Cov_sim_Ret/np.sqrt(np.outer(Var_sim_Ret, Var_sim_Ret))
-        plt.imshow(pearson)
-        plt.colorbar()
-        plt.title("Pearson correlation")
-        ax = plt.gca()
-        ax.set_xticks(np.arange(len(self.tickers)))
-        ax.set_xticklabels(self.tickers, rotation=90)
-        ax.set_yticks(np.arange(len(self.tickers)))
-        ax.set_yticklabels(self.tickers)
-        plt.show()
+        if show_plot:
+            pearson = Cov_sim_Ret/np.sqrt(np.outer(Var_sim_Ret, Var_sim_Ret))
+            plt.imshow(pearson)
+            plt.colorbar()
+            plt.title(f"{self._rebalance_name}: Pearson correlation")
+            ax = plt.gca()
+            ax.set_xticks(np.arange(len(self.tickers)))
+            ax.set_xticklabels(self.tickers, rotation=90)
+            ax.set_yticks(np.arange(len(self.tickers)))
+            ax.set_yticklabels(self.tickers)
+            plt.show()
 
     def gamma_huristic(self):
         """Ask the user about acceptible risk return and give a guide for gamma

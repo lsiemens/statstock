@@ -136,6 +136,8 @@ class HMMRebalance(rebalance.Rebalance):
     and the markov model.
     """
 
+    _rebalance_name = "Bayesian HMM"
+
     def initialize(self, states=2):
         """Initialize prior
 
@@ -392,6 +394,66 @@ class HMMRebalance(rebalance.Rebalance):
 
         return (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err)
 
+    def show_custom_statistics(self):
+        match self.interval:
+            case "OneDay":
+                periods_year = 52*5
+            case "OneWeek":
+                periods_year = 52
+            case _:
+                raise NotImplimentedError(f"The interval {self.interval} is not implimented")
+
+        alpha, i_lambda, i_nu, i_mu, i_Psi = self.get_posterior_parameters()
+        # TODO use market weights
+        weights = np.ones(self.width)
+
+        A = alpha/np.sum(alpha, axis=0)[None, :]
+        A_err = np.sqrt(A*(1 - A)/(np.sum(alpha, axis=0)[None, :] + 1))
+        steady_state = self.get_steady_state(A)
+
+        print(f"\nHidden Markov Model: {self.states} state model")
+        print("Steady state distribution:")
+        for state in range(self.states):
+            print(f"    {100*steady_state[state]:.1f}% probability of state {state}")
+
+        for state in range(self.states):
+            print(f"state {state}:")
+            for final_state in range(self.states):
+                print(f"    {state} ↦ {final_state}: Transition probability {100*A[final_state, state]:.1f}% ± {100*A_err[final_state, state]:.1f}%")
+
+            (ElnRet, ElnRet_err), (CovlnRet, CovlnRet_err) = self.market_state_statistics(i_lambda[state], i_nu[state], i_mu[state], i_Psi[state])
+
+            # Get per state returns
+            S_ElnRet = weights @ ElnRet
+            S_ElnRet_err = np.sqrt(np.sum(weights*ElnRet_err)**2)
+            S_VarlnRet = weights @ CovlnRet @ weights
+            S_VarlnRet_err = np.sqrt(np.sum((np.outer(weights, weights)*CovlnRet_err)**2))
+
+            print(f"\n    Expected mean log return: {S_ElnRet:.3f} ± {S_ElnRet_err:.3f}")
+            print(f"    Expected log return range: ({(S_ElnRet - np.sqrt(S_VarlnRet)):.3f}, {(S_ElnRet + np.sqrt(S_VarlnRet)):.3f}), given sample standard deviation: {np.sqrt(S_VarlnRet):.3f} ± {(S_VarlnRet_err/(2*np.sqrt(S_VarlnRet))):.3f}")
+
+            S_sim_Ret = np.exp(S_ElnRet + 0.5*S_VarlnRet) - 1
+            S_sim_Ret_err = (S_sim_Ret + 1)*np.sqrt(S_ElnRet_err**2 + 0.25*S_VarlnRet_err**2)
+
+            S_Var_sim_Ret = (S_sim_Ret + 1)**2*(np.exp(S_VarlnRet) - 1)
+            _err_mean = 2*(S_sim_Ret + 1)*S_sim_Ret_err*(np.exp(S_VarlnRet) - 1)
+            _err_var = (S_sim_Ret + 1)**2*np.exp(S_VarlnRet)*S_VarlnRet_err
+            S_Var_sim_Ret_err = np.sqrt(_err_mean**2 + _err_var**2)
+            S_sim_Ret_low = np.exp(S_ElnRet - np.sqrt(S_VarlnRet)) - 1
+            S_sim_Ret_high = np.exp(S_ElnRet + np.sqrt(S_VarlnRet)) - 1
+
+            print(f"    Expected mean return: {100*S_sim_Ret:.1f}% ± {100*S_sim_Ret_err:.1f}%")
+            print(f"    Expected return range: ({100*S_sim_Ret_low:.1f}%, {100*S_sim_Ret_high:.1f}%), given sample standard deviation: {100*np.sqrt(S_Var_sim_Ret):.1f}% ± {100*(S_Var_sim_Ret_err/(2*np.sqrt(S_Var_sim_Ret))):.1f}%")
+
+            p = A[state, state]
+            p_err = A_err[state, state]
+
+            dwell = np.log(0.5)/np.log(p)
+            dwell_err = np.abs(np.log(0.5)/np.log(p)**2)*(p_err/p)
+
+            print(f"\n    Median dwell time: {dwell:.1f} ± {dwell_err:.1f} {self.interval[3:]}")
+            print(f"    Expected dwell range: ({1 + np.log(0.84)/np.log(p):.1f}, {np.log(0.16)/np.log(p):.1f}) {self.interval[3:]}")
+
     def market_statistics(self, annualized=True):
         match self.interval:
             case "OneDay":
@@ -442,7 +504,7 @@ if __name__ == "__main__":
     #p_0 = portfolio.Portfolio("./long_holdings.csv", 52*30, "OneWeek")
     MPT = HMMRebalance(p_0, ["APPL", "ARM", "IBIT", "U", "DJT", "DGRC.TO", "LHX", "GME"])
     MPT.data_info()
-    #MPT.show_market_statistics()
+    MPT.show_market_statistics()
 
     def g(w):
         return 1 - np.sum(w)
