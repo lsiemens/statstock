@@ -9,18 +9,19 @@ class Group:
         self.weight = weight
 
         self.tickers = []
-        self.quantities = []
-        self.tags = []
+        self.quantities = {}
+        self.tags = {}
 
     def add_ticker(self, ticker, quantity, tags=[]):
         self.tickers.append(ticker)
-        self.quantities.append(quantity)
-        self.tags.append(tags)
+        self.quantities[ticker] = quantity
+        self.tags[ticker] = tags
 
     def finalize(self):
         if not np.isnan(self.weight):
-            norm = np.sum(self.quantities)
-            self.quantities = [value/norm for value in self.quantities]
+            norm = np.sum(list(self.quantities.values()))
+            for key in self.quantities:
+                self.quantities[key] = self.quantities[key]/norm
             if not np.isclose(norm, 1):
                 print(f"Warring the group {self.name} is not normalized")
                 print(f"The missing factor in the weights is {1 - norm:.2e}")
@@ -30,12 +31,12 @@ class Group:
         string = ""
         if np.isnan(self.weight):
             string = f"{self.name}:\n"
-            for i in range(len(self.tickers)):
-                string += f"    {self.tickers[i]}: {int(self.quantities[i]):d} shares\n"
+            for ticker in self.tickers:
+                string += f"    {ticker}: {int(self.quantities[ticker]):d} shares\n"
         else:
-            string = f"{self.name}: group weight {100*self.weight:.1f} %\n"
-            for i in range(len(self.tickers)):
-                string += f"    {self.tickers[i]}: {100*self.quantities[i]:.1f} %\n"
+            string = f"{self.name}: group weight {100*self.weight:.1f}%\n"
+            for ticker in self.tickers:
+                string += f"    {ticker}: {100*self.quantities[ticker]:.1f}%\n"
         return string
 
 
@@ -46,10 +47,11 @@ class TargetPortfolio:
         self.tickers = portfolio.tickers
         self.data = None
 
-        self.logprice = portfolio.logprice
-        self.logerror = portfolio.logerror
-
-        self.n_shares = portfolio.n_shares
+        self.logprice = {}
+        self.n_shares = {}
+        for i, key in enumerate(self.tickers):
+            self.logprice[key] = portfolio.logprice[i]
+            self.n_shares[key] = portfolio.n_shares[i]
 
         self.load_target_portfolio()
 
@@ -83,7 +85,6 @@ class TargetPortfolio:
                     if "Group, Weight" in line:
                         reading_header = True
 
-            
             if reading_groups:
                 if "Group:" in line:
                     group = line.split()[1].strip()
@@ -109,62 +110,85 @@ class TargetPortfolio:
             print("The group weights have been normalized to one.\n")
 
     def flatten(self):
-        weighted = ([], [])
-        individual = ([], [])
+        weighted = {}
+        individual = {}
         for key in self.data.keys():
             if np.isnan(self.data[key].weight):
-                inames, iweights = individual
-                inames += self.data[key].tickers
-                iweights += self.data[key].quantities
-                individual = (inames, iweights)
+                for ticker in self.data[key].tickers:
+                    if ticker in individual:
+                        raise ValueError("Ticker weights are not unique, there are repeated tickers")
+                    individual[ticker] = self.data[key].quantities[ticker]
             else:
-                wnames, wweights = weighted
-                wnames += self.data[key].tickers
-                wweights += [self.data[key].weight*value for value in self.data[key].quantities]
-                weighted = (wnames, wweights)
-        all_tickers = weighted[0] + individual[0]
-        if len(all_tickers) != len(set(all_tickers)):
-            raise ValueError("Ticker weights are not unique, there are repeated tickers")
+                for ticker in self.data[key].tickers:
+                    if ticker in weighted:
+                        raise ValueError("Ticker weights are not unique, there are repeated tickers")
+                    weighted[ticker] = self.data[key].weight*self.data[key].quantities[ticker]
+        for ticker in weighted:
+            if ticker in individual:
+                raise ValueError("Ticker weights are not unique, there are repeated tickers")
+        if not np.isclose(np.sum(list(weighted.values())), 1.0):
+            raise ValueError("Ticker weights are not normalized!")
         return weighted, individual
 
     def check_portfolio(self, cash=0):
         weighted, individual = self.flatten()
-        
-        windices = np.array([index for index, ticker in enumerate(self.tickers) if ticker not in individual[0]], dtype=int)
-        
-        tickers = np.array(self.tickers)[windices]
-        holding_values = self.n_shares[windices]*np.exp(self.logprice[windices, -1])
-        total_value = np.sum(holding_values) + cash
-        weights = holding_values/total_value
 
-        print(f"Portfolio modifications: starting cash ${cash:.2f} CAD")
-        for index, ticker in enumerate(weighted[0]):
+        tickers = [ticker for ticker in self.tickers if ticker not in individual]
+
+        holding_values = {}
+        for ticker in tickers:
+            holding_values[ticker] = self.n_shares[ticker]*np.exp(self.logprice[ticker][-1])
+        total_value = np.sum(list(holding_values.values())) + cash
+
+        weights = {}
+        for ticker in tickers:
+            weights[ticker] = holding_values[ticker]/total_value
+
+        print("Current Weighted portfolio holdings:")
+        for ticker in tickers:
+            print(f"    {ticker}: {100*weights[ticker]:4.1f}%")
+            print(f"        price ${np.exp(self.logprice[ticker][-1]):.2f} CAD")
+            print(f"        number of shares {self.n_shares[ticker]}")
+            print(f"        market value ${holding_values[ticker]:.2f} CAD")
+        print("Current unweighted portfolio holdings:")
+        for ticker in individual:
+            print(f"    {ticker}:")
+            print(f"        price ${np.exp(self.logprice[ticker][-1]):.2f} CAD")
+            print(f"        number of shares {self.n_shares[ticker]}")
+            print(f"        market value ${self.n_shares[ticker]*np.exp(self.logprice[ticker][-1]):.2f} CAD")
+
+        total_delta_value = 0
+        print(f"\nPortfolio modifications: starting cash ${cash:.2f} CAD")
+        for ticker in tickers:
             print(f"{ticker}:")
-            print(f"    target weight = {100*weighted[1][index]:4.1f} %")
             if ticker in self.tickers:
-                windex = np.argmax(ticker == tickers)
-                print(f"    current weight = {100*weights[windex]:4.1f} %")
-                delta_value = weighted[1][index]*total_value - holding_values[windex]
-                full_index = np.argmax(ticker == np.array(self.tickers))
+                if ticker in weighted:
+                    print(f"    target weight = {100*weighted[ticker]:4.1f}%")
+                    delta_value = weighted[ticker]*total_value - holding_values[ticker]
+                else:
+                    print("    target weight = 0.0%")
+                    delta_value = -holding_values[ticker]
+                print(f"    current weight = {100*weights[ticker]:4.1f} %")
                 print(f"    Delta value = ${delta_value:.2f} CAD")
-                print(f"    Delta shares = {delta_value/np.exp(self.logprice[full_index, -1]):.1f}")
+                print(f"    Delta shares = {delta_value/np.exp(self.logprice[ticker][-1]):.1f}")
             else:
                 print(f"    current weight = {0:4.1f} %")
-                delta_value = weighted[1][index]*total_value
+                delta_value = weighted[ticker]*total_value
                 print(f"    Delta value = ${delta_value:.2f} CAD")
-                print(f"    Delta shares = (no stock price data)")
+                print("    Delta shares = (no stock price data)")
+            total_delta_value += delta_value
+        print(f"Total change in portfolio value ${total_delta_value:.2f} CAD")
 
         print()
-        for index, ticker in enumerate(individual[0]):
+        for ticker in individual:
             print(f"{ticker}:")
-            print(f"    target # shares = {int(individual[1][index]):d}")
+            print(f"    target number of shares = {int(individual[ticker]):d}")
             if ticker in self.tickers:
-                iindex = np.argmax(ticker == np.array(self.tickers))
-                print(f"    current # shares = {int(self.n_shares[iindex]):d}")
-                print(f"    Delta # shares = {int(individual[1][index]) - int(self.n_shares[iindex]):d}")
+                print(f"    current number of shares = {int(self.n_shares[ticker]):d}")
+                print(f"    Delta shares = {int(individual[ticker]) - int(self.n_shares[ticker]):d}")
             else:
-                print(f"    current # shares = 0")
-                print(f"    Delta # shares = {int(individual[1][index]):d}")
+                print("    current number of shares = 0")
+                print(f"    Delta shares = {int(individual[ticker]):d}")
 
     def __str__(self):
         string = ""
@@ -178,7 +202,7 @@ if __name__ == "__main__":
     print("Target portfolio")
     print(target_portfolio)
 
-    target_portfolio.check_portfolio(25000)
+    target_portfolio.check_portfolio(20000)
     #A, B = target_portfolio.flatten()
     #_, weights = A
     #print(weights, np.sum(weights))
