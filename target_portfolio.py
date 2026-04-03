@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-import portfolio
+import light_portfolio
 
 class Group:
     def __init__(self, name, weight):
@@ -41,17 +41,17 @@ class Group:
 
 
 class TargetPortfolio:
-    def __init__(self, fname, portfolio):
+    def __init__(self, fname, lightportfolio):
         self.fname = fname
-        self.width = portfolio.width
-        self.tickers = portfolio.tickers
+        self.width = lightportfolio.width
+        self.tickers = lightportfolio.tickers
         self.data = None
 
-        self.logprice = {}
+        self.price = {}
         self.n_shares = {}
         for i, key in enumerate(self.tickers):
-            self.logprice[key] = portfolio.logprice[i]
-            self.n_shares[key] = portfolio.n_shares[i]
+            self.price[key] = lightportfolio.price[i]
+            self.n_shares[key] = lightportfolio.n_shares[i]
 
         self.load_target_portfolio()
 
@@ -63,7 +63,7 @@ class TargetPortfolio:
                 lines[i] = lines[i].strip()
                 if len(lines[i]) >= 1:
                     if lines[i][0] == "#":
-                        lines[i] = "" 
+                        lines[i] = ""
 
         self.data = {}
         group = None
@@ -137,7 +137,7 @@ class TargetPortfolio:
 
         holding_values = {}
         for ticker in tickers:
-            holding_values[ticker] = self.n_shares[ticker]*np.exp(self.logprice[ticker][-1])
+            holding_values[ticker] = self.n_shares[ticker]*self.price[ticker]
         total_value = np.sum(list(holding_values.values())) + cash
 
         weights = {}
@@ -147,15 +147,15 @@ class TargetPortfolio:
         print("Current Weighted portfolio holdings:")
         for ticker in tickers:
             print(f"    {ticker}: {100*weights[ticker]:4.1f}%")
-            print(f"        price ${np.exp(self.logprice[ticker][-1]):.2f} CAD")
+            print(f"        price ${self.price[ticker]:.2f} CAD")
             print(f"        number of shares {self.n_shares[ticker]}")
             print(f"        market value ${holding_values[ticker]:.2f} CAD")
         print("Current unweighted portfolio holdings:")
         for ticker in individual:
             print(f"    {ticker}:")
-            print(f"        price ${np.exp(self.logprice[ticker][-1]):.2f} CAD")
+            print(f"        price ${self.price[ticker]:.2f} CAD")
             print(f"        number of shares {self.n_shares[ticker]}")
-            print(f"        market value ${self.n_shares[ticker]*np.exp(self.logprice[ticker][-1]):.2f} CAD")
+            print(f"        market value ${self.n_shares[ticker]*self.price[ticker]:.2f} CAD")
 
         total_delta_value = 0
         print(f"\nPortfolio modifications: starting cash ${cash:.2f} CAD")
@@ -170,7 +170,7 @@ class TargetPortfolio:
                     delta_value = -holding_values[ticker]
                 print(f"    current weight = {100*weights[ticker]:4.1f} %")
                 print(f"    Delta value = ${delta_value:.2f} CAD")
-                print(f"    Delta shares = {delta_value/np.exp(self.logprice[ticker][-1]):.1f}")
+                print(f"    Delta shares = {delta_value/self.price[ticker]:.1f}")
             else:
                 print(f"    current weight = {0:4.1f} %")
                 delta_value = weighted[ticker]*total_value
@@ -197,7 +197,7 @@ class TargetPortfolio:
         return string
 
 if __name__ == "__main__":
-    p_0 = portfolio.Portfolio("./all_holdings.csv", 365, "OneDay")
+    p_0 = light_portfolio.LightPortfolio("./all_holdings.csv")
     target_portfolio = TargetPortfolio("../Notes/target_portfolio.csv", p_0)
     print("Target portfolio")
     print(target_portfolio)
