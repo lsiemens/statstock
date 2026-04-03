@@ -41,7 +41,7 @@ class EVector:
                     EVector.USDtoCAD = float(input("Exchange rate USD to CAD:"))
                 self.vector[:, 0] += np.log(self.USDtoCAD)
             case _:
-                raise NotImplementedError(f"The mode {mode} has not been implemented.")
+                raise NotImplementedError(f"The currency {currency} has not been implemented.")
 
     def _find_errors(self, candles, mode):
         """Estimate errors from OHLC
