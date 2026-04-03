@@ -130,28 +130,59 @@ class TargetPortfolio:
             raise ValueError("Ticker weights are not normalized!")
         return weighted, individual
 
-    def check_portfolio(self, cash=0):
+    def check_portfolio(self, cash=0, include_individual=False):
+        if not include_individual:
+            print("Note percentages are calculated while excluding the unweighted stocks.")
+
         weighted, individual = self.flatten()
+        # Validate target weights
+        if not np.isclose(np.sum(list(weighted.values())), 1.0):
+            raise ValueError("Target portfolio weights are not normalized")
 
         tickers = [ticker for ticker in self.tickers if ticker not in individual]
+        tickers_individual = [ticker for ticker in self.tickers if ticker in individual]
+
+        all_tickers = [ticker for ticker in set(self.tickers).union(weighted.keys()) if ticker not in individual]
+        all_tickers_individual = [ticker for ticker in set(self.tickers).union(individual.keys()) if ticker in individual]
 
         holding_values = {}
         for ticker in tickers:
             holding_values[ticker] = self.n_shares[ticker]*self.price[ticker]
         total_value = np.sum(list(holding_values.values())) + cash
 
+        individual_values = {}
+        for ticker in tickers_individual:
+            individual_values[ticker] = self.n_shares[ticker]*self.price[ticker]
+        total_value_individual = np.sum(list(individual_values.values()))
+        if include_individual:
+            total_value += total_value_individual
+            for ticker in weighted.keys():
+                weighted[ticker] *= (total_value - total_value_individual)/total_value
+
         weights = {}
         for ticker in tickers:
             weights[ticker] = holding_values[ticker]/total_value
+        weights["cash"] = cash/total_value
+
+        # validate portfolio weights
+        total_weight = np.sum(list(weights.values()))
+        if include_individual:
+            total_weight += np.sum([value/total_value for value in individual_values.values()])
+        if not np.isclose(total_weight, 1.0):
+            raise ValueError("Portfolio weights are not normalized")
 
         print("Current Weighted portfolio holdings:")
         for ticker in tickers:
-            print(f"    {ticker}: {100*weights[ticker]:4.1f}%")
+            print(f"    {ticker}: {100*weights[ticker]:4.2f}%")
             print(f"        price ${self.price[ticker]:.2f} CAD")
             print(f"        number of shares {self.n_shares[ticker]}")
             print(f"        market value ${holding_values[ticker]:.2f} CAD")
-        print("Current unweighted portfolio holdings:")
-        for ticker in individual:
+        print(f"    cash: {100*weights['cash']:4.2f}%")
+        print(f"        value ${cash:.2f} CAD")
+
+        if len(list(tickers_individual)) > 0:
+            print("Current unweighted portfolio holdings:")
+        for ticker in tickers_individual:
             print(f"    {ticker}:")
             print(f"        price ${self.price[ticker]:.2f} CAD")
             print(f"        number of shares {self.n_shares[ticker]}")
@@ -159,28 +190,35 @@ class TargetPortfolio:
 
         total_delta_value = 0
         print(f"\nPortfolio modifications: starting cash ${cash:.2f} CAD")
-        for ticker in tickers:
+        if include_individual:
+            print(f"\tTotal value (weighted) + (individual) + (cash) in CAD: ${total_value - total_value_individual - cash:.2f} + ${total_value_individual:.2f} + ${cash:.2f} = ${total_value:.2f}")
+        else:
+            print(f"\tTotal value (weighted) + (individual) + (cash) in CAD: ${total_value - cash:.2f} + ${total_value_individual:.2f} + ${cash:.2f} = ${total_value + total_value_individual:.2f}")
+
+        for ticker in all_tickers:
             print(f"{ticker}:")
             if ticker in self.tickers:
                 if ticker in weighted:
-                    print(f"    target weight = {100*weighted[ticker]:4.1f}%")
+                    print(f"    target weight = {100*weighted[ticker]:4.2f}%")
                     delta_value = weighted[ticker]*total_value - holding_values[ticker]
                 else:
                     print("    target weight = 0.0%")
                     delta_value = -holding_values[ticker]
-                print(f"    current weight = {100*weights[ticker]:4.1f} %")
+                print(f"    current weight = {100*weights[ticker]:4.2f}%")
                 print(f"    Delta value = ${delta_value:.2f} CAD")
                 print(f"    Delta shares = {delta_value/self.price[ticker]:.1f}")
             else:
-                print(f"    current weight = {0:4.1f} %")
+                print(f"    current weight = {0:4.2f}%")
                 delta_value = weighted[ticker]*total_value
                 print(f"    Delta value = ${delta_value:.2f} CAD")
                 print("    Delta shares = (no stock price data)")
             total_delta_value += delta_value
-        print(f"Total change in portfolio value ${total_delta_value:.2f} CAD")
+
+        if not np.isclose(total_delta_value, cash):
+            raise ValueError(f"The total change in portfolio value should be equal to the available cash, instead it was ${total_delta_value:.2f} CAD")
 
         print()
-        for ticker in individual:
+        for ticker in all_tickers_individual:
             print(f"{ticker}:")
             print(f"    target number of shares = {int(individual[ticker]):d}")
             if ticker in self.tickers:
@@ -202,8 +240,6 @@ if __name__ == "__main__":
     print("Target portfolio")
     print(target_portfolio)
 
-    target_portfolio.check_portfolio(20000)
-    #A, B = target_portfolio.flatten()
-    #_, weights = A
-    #print(weights, np.sum(weights))
+    cash = float(input("Available cash [CAD]:"))
+    target_portfolio.check_portfolio(cash, include_individual=True)
 
