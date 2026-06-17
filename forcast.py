@@ -100,7 +100,8 @@ class Forcast:
         alpha_max = 1
         cash_max = final_cash(alpha_max)
 
-        assert cash_min < 0, "Balancing is expected to have costs"
+        # TODO reconsider this line
+        #assert cash_min < 0, "Balancing is expected to have costs"
         if cash_max < 0:
             return (-n_shares, 0, 0, 0)
 

@@ -200,13 +200,19 @@ class Rebalance:
         print(f"Expected return range: ({100*P_sim_Ret_low:.1f}%, {100*P_sim_Ret_high:.1f}%), given sample standard deviation: {100*np.sqrt(P_Var_sim_Ret):.1f}% ± {100*(P_Var_sim_Ret_err/(2*np.sqrt(P_Var_sim_Ret))):.1f}%")
 
         # Calculate Sharpe ratio and Kelly ratio
-        sharpe_ratio = (P_sim_Ret - sim_Ret_free)/np.sqrt(P_Var_sim_Ret)
-        sharpe_ratio_err = np.sqrt(P_sim_Ret_err**2/P_Var_sim_Ret + (sharpe_ratio*P_Var_sim_Ret_err/(2*P_Var_sim_Ret))**2)
-        print(f"Sharpe ratio: {sharpe_ratio:.2f} ± {sharpe_ratio_err:.2f}")
+        try:
+          sharpe_ratio = (P_sim_Ret - sim_Ret_free)/np.sqrt(P_Var_sim_Ret)
+          sharpe_ratio_err = np.sqrt(P_sim_Ret_err**2/P_Var_sim_Ret + (sharpe_ratio*P_Var_sim_Ret_err/(2*P_Var_sim_Ret))**2)
+          print(f"Sharpe ratio: {sharpe_ratio:.2f} ± {sharpe_ratio_err:.2f}")
+        except TypeError:
+          print("Failed to calculate Sharpe ratio")
 
-        kelly_ratio = (P_sim_Ret - sim_Ret_free)/P_Var_sim_Ret
-        kelly_ratio_err = np.sqrt(P_sim_Ret_err**2 + (kelly_ratio*P_Var_sim_Ret_err)**2)/P_Var_sim_Ret
-        print(f"Kelly ratio: {kelly_ratio:.2f} ± {kelly_ratio_err:.2f}")
+        try:
+          kelly_ratio = (P_sim_Ret - sim_Ret_free)/P_Var_sim_Ret
+          kelly_ratio_err = np.sqrt(P_sim_Ret_err**2 + (kelly_ratio*P_Var_sim_Ret_err)**2)/P_Var_sim_Ret
+          print(f"Kelly ratio: {kelly_ratio:.2f} ± {kelly_ratio_err:.2f}")
+        except TypeError:
+          print("Failed to calculate Kelly ratio")
 
         # Find market correlation and beta
         beta = None

@@ -518,6 +518,18 @@ if __name__ == "__main__":
     bounds = [(0.0, 1.0) for i in range(MPT.width)]
     weights = MPT.solver(U, eq_consts=[g], bounds=bounds)
 
+    if np.any(np.isnan(weights)):
+        print("No solution found, nan weights")
+        for i in range(len(MPT.tickers)):
+            weights[i] = float(input(f"Weight ({MPT.tickers[i]}):"))
+            if (weights[i] < 0):
+                print("Weights must be positive")
+
+        weights = weights/np.sum(weights)
+        print("Normalized portfolio weights")
+        for i in range(len(MPT.tickers)):
+            print(f"    weight ({MPT.tickers[i]}): {100*weights[i]:.1f}%")
+
     MPT.show_portfolio_statistics(weights)
 
     def cash_flow(year):
